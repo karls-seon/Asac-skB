@@ -1,10 +1,14 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
-api_key.txt
+epost_api_key.txt
+smartchoice_api_key.txt
 # .gitkeep 파일 예외
 02_Data/**
 !02_Data/**/.gitkeep
+03_Docs/**
+!03_Docs/**/.gitkeep
+>>>>>>> ddf44f8ad02aec7a1e9a65c5b98837f8af1c9723
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
