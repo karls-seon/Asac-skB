@@ -27,7 +27,7 @@ from pathlib import Path
 # schema.py는 src/ 바로 아래 있으므로, src/agents/에서 실행될 때도
 # import가 되도록 src/를 경로에 추가한다.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from schema import BASE_DIR, final_path, PLAN_COLUMNS  # noqa: E402
+from schema import BASE_DIR, final_path, PLAN_COLUMNS, BENEFIT_COLUMNS  # noqa: E402
 
 REVIEW_DIR = BASE_DIR / "data" / "review"
 PLAN_OUT = final_path("통신요금제_통합데이터_최종.csv")
@@ -44,22 +44,57 @@ def _read_csv(path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def _latest_summary_date() -> date | None:
-    """가장 최근 갱신 리포트의 날짜. 리포트가 하나도 없으면(첫 실행) None."""
+def _read_summaries() -> list[tuple[date, str]]:
+    """갱신 리포트를 (날짜, status) 목록으로 읽는다. 오래된 것부터 정렬.
+
+    깨진 파일은 조용히 건너뛴다. 리포트 하나가 손상됐다고 에이전트 전체가
+    죽으면, 정작 멀쩡한 최종 CSV가 있는데도 데이터를 못 넘겨주게 된다.
+    """
     if not REVIEW_DIR.exists():
-        return None
-    files = sorted(REVIEW_DIR.glob("summary_*.json"))
-    if not files:
-        return None
-    payload = json.loads(files[-1].read_text(encoding="utf-8"))
-    return date.fromisoformat(payload["date"])
+        return []
+    out = []
+    for path in REVIEW_DIR.glob("summary_*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            run_date = date.fromisoformat(payload["date"])
+        except (json.JSONDecodeError, KeyError, ValueError, OSError):
+            print(f"[Data Retrieval Agent] 경고: 리포트를 읽을 수 없음 - {path.name}")
+            continue
+        # status가 없는 건 이 필드가 생기기 전에 쓰인 리포트다. 그 시절엔
+        # 리포트가 곧 성공을 뜻했으므로 applied로 본다.
+        out.append((run_date, payload.get("status", "applied")))
+    return sorted(out)
+
+
+def last_applied_date() -> date | None:
+    """**성공적으로 반영된** 마지막 갱신 날짜. = 지금 최종 CSV에 담긴 데이터의 기준일.
+
+    refresh_plans.py는 가드 위반으로 중단(aborted)해도 리포트는 남긴다.
+    그래서 "리포트가 있다"는 "데이터가 갱신됐다"와 다르다 - status를 봐야 한다.
+    """
+    applied = [d for d, status in _read_summaries() if status == "applied"]
+    return applied[-1] if applied else None
 
 
 def is_stale(today: date | None = None) -> bool:
-    """리포트가 없거나(첫 실행) 마지막 갱신이 REFRESH_INTERVAL_DAYS 이상 지났으면 True."""
+    """재수집이 필요한가.
+
+    필요한 경우: 성공한 갱신이 아예 없거나(첫 실행), 마지막 성공이
+    REFRESH_INTERVAL_DAYS 이상 지났을 때. **중단된 갱신은 성공으로 치지
+    않으므로**, 지난주 갱신이 실패했다면 다음 주까지 기다리지 않고 다시 시도한다.
+
+    단, **하루에 한 번만** 시도한다. 사이트 구조가 바뀌어 계속 실패하는
+    상황에서, 사용자 요청마다 이 에이전트가 불리면 그때마다 전체 재크롤링이
+    돌아 사이트를 두드리게 된다. 오늘 이미 시도했으면(성공이든 실패든)
+    오늘은 더 시도하지 않는다.
+    """
     today = today or date.today()
-    last = _latest_summary_date()
-    return last is None or (today - last).days >= REFRESH_INTERVAL_DAYS
+    summaries = _read_summaries()
+    if summaries and summaries[-1][0] >= today:
+        return False   # 오늘 이미 시도함
+
+    applied = last_applied_date()
+    return applied is None or (today - applied).days >= REFRESH_INTERVAL_DAYS
 
 
 def validate_output(plans: list[dict], benefits: list[dict]) -> list[str]:
@@ -79,16 +114,25 @@ def validate_output(plans: list[dict], benefits: list[dict]) -> list[str]:
     if not benefits:
         errors.append("benefits가 비어 있음")
 
-    missing_cols = set(PLAN_COLUMNS) - set(plans[0].keys())
-    if missing_cols:
-        errors.append(f"plans 컬럼 누락: {sorted(missing_cols)}")
+    # 컬럼 검사는 .get()으로 값을 읽기 전에 한다. 아래 검사들이 전부
+    # .get(키, 기본값)을 쓰는데, 컬럼이 통째로 없으면 "전부 빈 값"으로
+    # 조용히 통과해버리기 때문이다.
+    missing_plan_cols = set(PLAN_COLUMNS) - set(plans[0].keys())
+    if missing_plan_cols:
+        errors.append(f"plans 컬럼 누락: {sorted(missing_plan_cols)}")
+    if benefits:
+        missing_benefit_cols = set(BENEFIT_COLUMNS) - set(benefits[0].keys())
+        if missing_benefit_cols:
+            errors.append(f"benefits 컬럼 누락: {sorted(missing_benefit_cols)}")
 
     plan_ids = [p.get("plan_id", "") for p in plans]
     dup = len(plan_ids) - len(set(plan_ids))
     if dup:
         errors.append(f"plan_id 중복 {dup}건")
 
-    orphans = {b["plan_id"] for b in benefits} - set(plan_ids)
+    # b["plan_id"]로 읽으면 컬럼이 없을 때 KeyError로 죽는다. 검증 함수가
+    # 죽으면 "무엇이 잘못됐는지"를 알려주지 못한 채 에이전트가 멈춘다.
+    orphans = {b.get("plan_id", "") for b in benefits} - set(plan_ids)
     if orphans:
         errors.append(f"고아 혜택 {len(orphans)}건 (plans에 없는 plan_id를 참조)")
 
@@ -96,6 +140,15 @@ def validate_output(plans: list[dict], benefits: list[dict]) -> list[str]:
     for site in ("KT", "SKT", "LGU+"):
         if by_site.get(site, 0) == 0:
             errors.append(f"{site} 요금제가 0행")
+
+    # host_mno는 **망 제공사**라 알뜰폰도 KT/SKT/LGU+로 찍힌다. 그래서 위
+    # 검사만으로는 모요(MVNO) 크롤러가 통째로 죽은 걸 못 잡는다 - 통신 3사
+    # 자사 요금제가 남아 있어 세 값이 모두 0이 아니기 때문이다.
+    # 실제로 MVNO가 전체의 8할이므로 별도로 확인한다.
+    by_carrier = Counter(p.get("carrier_type", "") for p in plans)
+    for carrier in ("MNO", "MVNO"):
+        if by_carrier.get(carrier, 0) == 0:
+            errors.append(f"{carrier} 요금제가 0행")
 
     return errors
 
@@ -132,11 +185,18 @@ def data_retrieval_agent(state: dict) -> dict:
     else:
         print(f"[Data Retrieval Agent] 검증 통과: plans {len(plans)}행 / benefits {len(benefits)}행")
 
+    # 오늘 날짜가 아니라 **마지막으로 성공한 갱신 날짜**를 넘긴다. 캐시를 쓴
+    # 날에도 오늘로 찍으면, 리포트 에이전트가 일주일 묵은 값을 "오늘 기준"이라고
+    # 사용자에게 말하게 된다. 재수집 뒤에 다시 읽어야 방금 쓰인 리포트가 반영된다.
+    as_of = last_applied_date()
+    if as_of and (date.today() - as_of).days >= REFRESH_INTERVAL_DAYS:
+        print(f"[Data Retrieval Agent] 주의: 데이터가 {(date.today() - as_of).days}일 지남 (기준일 {as_of})")
+
     return {
         "plans": plans,
         "benefits": benefits,
         "data_refreshed": refreshed,
         "data_stale_aborted": aborted,
-        "data_as_of": date.today().isoformat(),
+        "data_as_of": as_of.isoformat() if as_of else "",
         "data_validation_errors": validation_errors,
     }
