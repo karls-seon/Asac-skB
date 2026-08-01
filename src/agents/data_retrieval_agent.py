@@ -9,7 +9,7 @@ src/refresh_plans.py로 이 역할을 구현해 뒀다 - 캐싱은 data/raw_cach
 신선도 기준: data/review/summary_*.json 중 가장 최근 날짜가
 REFRESH_INTERVAL_DAYS 이상 지났으면 오래됐다고 보고 refresh_plans.py를
 통째로 돌려 재수집한다. 아직 신선하면 재수집 없이 최종 CSV를 그대로 읽어
-돌려준다(주 1회면 충분한데 요청마다 크롤링하면 사이트에 불필요한 부담).
+돌려준다(하루 한 번이면 충분한데 요청마다 크롤링하면 사이트에 불필요한 부담).
 
 재수집은 **subprocess로** 돌린다. import해서 함수를 직접 부르면 각
 crawl_*.py가 갖는 전역 상태(CACHE_DIR 등)가 이 에이전트 프로세스와 뒤섞일
@@ -34,7 +34,7 @@ PLAN_OUT = final_path("통신요금제_통합데이터_최종.csv")
 BENEFIT_OUT = final_path("통신요금제_혜택상세_최종.csv")
 REFRESH_PLANS_SCRIPT = BASE_DIR / "src" / "refresh_plans.py"
 
-REFRESH_INTERVAL_DAYS = 7
+REFRESH_INTERVAL_DAYS = 1
 
 
 def _read_csv(path: Path) -> list[dict]:
@@ -81,7 +81,7 @@ def is_stale(today: date | None = None) -> bool:
 
     필요한 경우: 성공한 갱신이 아예 없거나(첫 실행), 마지막 성공이
     REFRESH_INTERVAL_DAYS 이상 지났을 때. **중단된 갱신은 성공으로 치지
-    않으므로**, 지난주 갱신이 실패했다면 다음 주까지 기다리지 않고 다시 시도한다.
+    않으므로**, 어제 갱신이 실패했다면 내일까지 기다리지 않고 오늘 다시 시도한다.
 
     단, **하루에 한 번만** 시도한다. 사이트 구조가 바뀌어 계속 실패하는
     상황에서, 사용자 요청마다 이 에이전트가 불리면 그때마다 전체 재크롤링이
@@ -161,7 +161,7 @@ def data_retrieval_agent(state: dict) -> dict:
 
     if is_stale():
         print("[Data Retrieval Agent] 데이터가 오래됨 -> refresh_plans.py 실행")
-        # --parse-only를 안 붙인다: 주간 갱신의 목적 자체가 사이트에 실제
+        # --parse-only를 안 붙인다: 정기 갱신의 목적 자체가 사이트에 실제
         # 변경이 있었는지 확인하는 것이라, 캐시만 다시 파싱하면 의미가 없다.
         result = subprocess.run(
             [sys.executable, str(REFRESH_PLANS_SCRIPT)], cwd=BASE_DIR,
