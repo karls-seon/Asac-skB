@@ -39,10 +39,56 @@ DETAIL_URL = BASE + "/plans/{plan_id}"
 CACHE_DIR = cache_dir("moyo")
 
 
-def _get(url: str) -> str:
+# 한 요청에 허용할 **총** 시간과 재시도 횟수.
+#
+# urlopen(timeout=N)의 N은 "총 소요 시간"이 아니라 **소켓 작업 하나당** 제한이다.
+# 그래서 서버가 데이터를 조금씩 흘려보내면 타임아웃이 영영 걸리지 않는다.
+# 실측(2026-08-01 갱신)에서 timeout=20인데 한 건이 **269초** 걸렸고, 이런 정체
+# 106건이 상세 수집 34분 중 31분(89%)을 먹었다. 정작 중앙값은 0.4초였다.
+#
+# 정체는 특정 시간대에 몰리지 않고 산발적이라(서버가 우리를 제한하는 게 아니다)
+# 끊고 다시 요청하면 대개 바로 성공한다. 그래서 짧게 자르고 재시도한다.
+# 6초는 중앙값의 15배라 정상 응답이 잘릴 일은 없다.
+REQUEST_DEADLINE_SEC = 6.0
+REQUEST_ATTEMPTS = 3
+# 소켓 작업 하나당 제한. deadline보다 짧게 둬야 초과분이 작아진다 - 경과 시간
+# 확인은 덩어리 사이에서만 할 수 있어서, 한 번 받는 데 오래 걸리면 그만큼
+# deadline을 넘겨서야 멈춘다. 정상 응답은 0.4초(중앙값)라 3초면 넉넉하다.
+SOCKET_TIMEOUT_SEC = 3.0
+
+
+def _get_once(url: str, deadline: float) -> str:
+    """deadline초를 넘기면 TimeoutError. 받는 도중에도 경과 시간을 확인한다."""
+    started = time.monotonic()
     req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    with urllib.request.urlopen(req, timeout=SOCKET_TIMEOUT_SEC) as resp:
+        chunks = []
+        while True:
+            # 소켓 timeout만으로는 "느리지만 끊기지는 않는" 응답을 못 자른다.
+            # 덩어리를 받을 때마다 총 경과 시간을 직접 확인한다.
+            if time.monotonic() - started > deadline:
+                raise TimeoutError(f"{deadline}초 초과")
+            # read(n)이 아니라 read1(n)이어야 한다. read(n)은 n바이트가 다
+            # 모일 때까지 내부에서 계속 기다려서, 서버가 찔끔찔끔 보내면
+            # 위 경과 시간 확인이 실행될 기회조차 없다(=이 함수를 만든 이유가
+            # 무의미해진다). read1은 한 번 받은 만큼 바로 돌려준다.
+            chunk = resp.read1(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    return b"".join(chunks).decode("utf-8", errors="replace")
+
+
+def _get(url: str) -> str:
+    last_error = None
+    for attempt in range(REQUEST_ATTEMPTS):
+        try:
+            return _get_once(url, REQUEST_DEADLINE_SEC)
+        except Exception as e:
+            last_error = e
+            if attempt < REQUEST_ATTEMPTS - 1:
+                time.sleep(0.5 * (attempt + 1))
+    raise last_error
 
 
 _KRW_RE = re.compile(r"([\d,.]+)\s*(만|천)?\s*원")
