@@ -22,12 +22,19 @@ Windows 작업 스케줄러 등 사람이 안 보는 환경에서 돌리면 콘�
 알 수 있다.
 """
 import json
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from langgraph.graph import StateGraph, START, END
 
-from state import AppState
-from data_retrieval_agent import data_retrieval_agent, REVIEW_DIR
+# 이 폴더를 경로에 넣어야 아래 import가 **어디서 실행하든** 동작한다.
+# python이 스크립트를 직접 실행할 때만 스크립트 폴더를 자동으로 넣어주므로,
+# 이게 없으면 나중에 오케스트레이터가 `from agents.graph import graph`처럼
+# 불러올 때 깨진다.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state import AppState  # noqa: E402
+from data_retrieval_agent import data_retrieval_agent, REVIEW_DIR  # noqa: E402
 
 builder = StateGraph(AppState)
 builder.add_node("data_retrieval", data_retrieval_agent)
@@ -63,11 +70,13 @@ if __name__ == "__main__":
     _log_run(result)
 
     print(f"\nplans: {len(result['plans'])}행 / benefits: {len(result['benefits'])}행")
-    print(f"data_as_of: {result['data_as_of']}")
+    print(f"data_as_of: {result['data_as_of'] or '(성공한 갱신 기록 없음)'}")
     print(f"refreshed: {result['data_refreshed']} / stale_aborted: {result['data_stale_aborted']}")
     print(f"validation_errors: {result['data_validation_errors'] or '없음'}")
     print(f"실행 기록: {RUN_LOG_PATH}")
 
-    # 검증 실패면 스케줄러/모니터링이 "실패"로 인식하도록 종료 코드를 0이 아니게 한다.
-    if result["data_validation_errors"]:
+    # 스케줄러/모니터링이 "실패"로 인식하도록 종료 코드를 0이 아니게 한다.
+    # 재수집이 중단된 경우도 실패다 - 이전 CSV가 멀쩡해서 검증을 통과하더라도
+    # "이번에 새 데이터를 못 받았다"는 사실은 알려야 한다.
+    if result["data_validation_errors"] or result["data_stale_aborted"]:
         raise SystemExit(1)

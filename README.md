@@ -111,12 +111,36 @@ schtasks /create /tn "요금제 갱신" /tr "python C:\Users\NT551_11TH\Desktop\
 ## 필요한 패키지
 
 ```bash
-pip install requests beautifulsoup4 selenium
+pip install -r requirements.txt
 ```
 
 `selenium`(+ Chrome)은 **LG U+ 수집에만** 필요합니다. LG U+ 목록 페이지가 SPA라
 브라우저 없이는 카드가 보이지 않습니다. 나머지 3개 사이트와 모든 `--parse-only`
 실행은 브라우저가 필요 없습니다.
+
+`langgraph`/`python-dotenv`는 `src/agents/`(멀티에이전트 파이프라인)에서 씁니다.
+
+## 새 컴퓨터에서 이어서 작업하기
+
+```bash
+git clone https://github.com/karls-seon/Asac-skB.git
+cd Asac-skB
+pip install -r requirements.txt
+copy .env.example .env   # 실제 API 키는 이 파일에 직접 채운다 (git에 안 올라감)
+```
+
+**주의할 점 2가지**
+
+1. **Python 3.10 이상 필요** (`X | None` 타입 힌트 문법 때문). 3.12 권장.
+2. **`data/raw_cache/`는 git에 없다** (500MB+라 `.gitignore`됨). `data/final`·
+   `interim`은 그대로 받아지지만, `--parse-only`로 빠르게 재파싱하고 싶다면
+   raw_cache를 다른 방법으로(USB, 클라우드 등) 직접 옮겨야 한다. 없으면
+   `python src/refresh_plans.py`(전체 재수집)부터 한 번 돌려서 새로 만들면 된다.
+
+동작 확인:
+```bash
+python src/agents/graph.py
+```
 
 ## 알아둘 점
 

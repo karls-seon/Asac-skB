@@ -7,5 +7,8 @@ data/raw_cache/
 # Claude Code 로컬 설정 - 이 컴퓨터에서만 의미 있음
 .claude/
 
+# 에이전트 실행 기록 - 컴퓨터마다 다른 실행 이력이라 공유하면 충돌만 난다
+data/review/agent_run_log.jsonl
+
 __pycache__/
 *.pyc
