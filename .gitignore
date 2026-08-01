@@ -1,0 +1,11 @@
+# API 키 등 비밀값 - 절대 커밋 금지
+.env
+
+# 원본 캐시(500MB+, README 참고) - 재수집으로 언제든 다시 만들 수 있다
+data/raw_cache/
+
+# Claude Code 로컬 설정 - 이 컴퓨터에서만 의미 있음
+.claude/
+
+__pycache__/
+*.pyc
