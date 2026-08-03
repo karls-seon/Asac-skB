@@ -29,6 +29,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from schema import BASE_DIR, final_path, PLAN_COLUMNS, BENEFIT_COLUMNS  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import schema_drift  # noqa: E402
+
 REVIEW_DIR = BASE_DIR / "data" / "review"
 PLAN_OUT = final_path("통신요금제_통합데이터_최종.csv")
 BENEFIT_OUT = final_path("통신요금제_혜택상세_최종.csv")
@@ -64,6 +67,45 @@ def _read_summaries() -> list[tuple[date, str]]:
         # 리포트가 곧 성공을 뜻했으므로 applied로 본다.
         out.append((run_date, payload.get("status", "applied")))
     return sorted(out)
+
+
+def _guard_violations(run_date: date) -> list[str]:
+    """해당 날짜 갱신 리포트의 가드 위반 목록. 없거나 깨졌으면 빈 리스트."""
+    path = REVIEW_DIR / f"summary_{run_date.isoformat()}.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("guard_violations", [])
+    except (json.JSONDecodeError, KeyError, ValueError, OSError):
+        return []
+
+
+def diagnose_drift(aborted: bool) -> dict:
+    """재수집 뒤 구조변경(파싱 회귀)이 있었는지 진단한다.
+
+    가드가 걸렸을 때만 돌리지 않고 **재수집한 날은 항상** 돌린다. 가드는
+    수집 단위가 35% 넘게 줄어야 걸리는데, 그보다 작은 회귀(상품 하나가
+    조용히 안 읽히는 것)는 가드를 통과해버리기 때문이다. 진단 자체는 파일
+    목록과 집합 연산뿐이라 비용이 거의 없다.
+
+    가드가 걸린 경우에는 위반 메시지에서 의심 사이트를 뽑아 그쪽만 본다.
+
+    **진단이 실패해도 수집 결과는 그대로 넘긴다.** 이건 부가 정보라,
+    여기서 예외가 나서 멀쩡한 데이터까지 못 넘기는 게 훨씬 나쁘다.
+    """
+    try:
+        sites = schema_drift.suspect_sites(_guard_violations(date.today())) if aborted else None
+        report, findings = schema_drift.diagnose(sites)
+        regressed = {f.site: f.regressed for f in findings if f.regressed}
+        if regressed:
+            print(f"[Data Retrieval Agent] 구조변경 의심 - 진단 리포트: {report}")
+            for site, keys in regressed.items():
+                print(f"  {schema_drift.SITES[site].label}: {len(keys)}개 소스가 파싱 안 됨")
+        return {
+            "drift_report_path": str(report) if report else "",
+            "drift_regressed": regressed,
+        }
+    except Exception as e:  # noqa: BLE001 - 진단 실패가 수집을 막으면 안 된다
+        print(f"[Data Retrieval Agent] 경고: 구조변경 진단 실패 - {e}")
+        return {"drift_report_path": "", "drift_regressed": {}}
 
 
 def last_applied_date() -> date | None:
@@ -175,6 +217,9 @@ def data_retrieval_agent(state: dict) -> dict:
     else:
         print("[Data Retrieval Agent] 데이터가 신선함 -> 캐시된 최종 CSV 사용")
 
+    # 재수집한 날만 진단한다. 캐시를 쓴 날은 interim CSV가 그대로라 볼 게 없다.
+    drift = diagnose_drift(aborted) if refreshed else {"drift_report_path": "", "drift_regressed": {}}
+
     plans = _read_csv(PLAN_OUT)
     benefits = _read_csv(BENEFIT_OUT)
     validation_errors = validate_output(plans, benefits)
@@ -199,4 +244,5 @@ def data_retrieval_agent(state: dict) -> dict:
         "data_stale_aborted": aborted,
         "data_as_of": as_of.isoformat() if as_of else "",
         "data_validation_errors": validation_errors,
+        **drift,
     }
