@@ -49,6 +49,10 @@ WATCHED_FIELDS = (
 # 자동 실행이라 사람이 안 보므로, 파싱이 조용히 망가진 경우를 수치로 막는다.
 MAX_TOTAL_CHANGE_RATIO = 0.20   # 전체 행 수가 ±20% 넘게 흔들리면 중단
 MAX_REMOVED_RATIO = 0.10        # 단종이 이전 전체의 10%를 넘으면 중단
+# 수집 단위(KT/SKT/LGU+/모요) 하나가 이 비율 넘게 줄면 중단. 전체 비율보다
+# 느슨해 보이지만 실제로는 훨씬 민감하다 - 한 사이트만 보기 때문이다.
+# 요금제 개편으로 한 사이트가 3할쯤 줄어드는 건 있을 수 있어서 그보다 위에 둔다.
+MAX_SITE_DROP_RATIO = 0.35
 
 
 def _read_csv(path: Path) -> list[dict]:
@@ -160,6 +164,31 @@ def check_guards(prev: list[dict], new: list[dict], benefits: list[dict],
     for site in ("KT", "SKT", "LGU+"):
         if by_site.get(site, 0) == 0:
             violations.append(f"{site} 요금제가 0행")
+
+    # 전체 행 수만 보면 **한 사이트가 통째로 망가져도 안 걸린다.** 모요(MVNO)가
+    # 전체의 8할이라 나머지 한 곳이 급감해도 전체 비율은 조용하기 때문이다.
+    # 실제로 KT가 259행 -> 29행(-89%)이 됐는데도 전체로는 -8%뿐이라 위 가드를
+    # 통과했다(docs/수정이력.md 35번). 그래서 **수집 단위별로** 따로 본다.
+    #
+    # host_mno는 망 제공사라 알뜰폰도 KT/SKT/LGU+로 찍힌다. 크롤러 하나가
+    # 죽은 걸 잡으려면 "누가 수집했나"로 세야 하므로 carrier_type으로 MNO만
+    # 걸러 세고, MVNO(모요)는 따로 센다.
+    def _by_source(rows):
+        counts = Counter()
+        for r in rows:
+            if r.get("carrier_type") == "MVNO":
+                counts["MVNO(모요)"] += 1
+            else:
+                counts[r.get("host_mno", "")] += 1
+        return counts
+
+    if prev:
+        prev_src, new_src = _by_source(prev), _by_source(new)
+        for site, before in prev_src.items():
+            after = new_src.get(site, 0)
+            if before and (before - after) / before > MAX_SITE_DROP_RATIO:
+                violations.append(
+                    f"{site} 행 수 급감: {before} -> {after} ({(after - before) / before:.1%})")
 
     ids = [r["plan_id"] for r in new]
     dup = len(ids) - len(set(ids))

@@ -18,3 +18,7 @@ class AppState(TypedDict, total=False):
     data_stale_aborted: bool    # 재수집을 돌렸으나 가드 위반으로 중단됐는지
     data_as_of: str             # 반환한 데이터의 기준 날짜 (YYYY-MM-DD)
     data_validation_errors: list[str]  # 구조 검증 실패 사유. 비어 있으면 통과
+    # 사이트 구조가 바뀌어 파싱이 조용히 실패한 흔적 (schema_drift.py).
+    # 비어 있으면 정상 - 뒤쪽 에이전트는 이 값이 차 있을 때만 신경 쓰면 된다.
+    drift_report_path: str      # 진단 리포트 경로. 회귀가 없으면 빈 문자열
+    drift_regressed: dict       # {사이트: [파싱 안 된 소스 키]}

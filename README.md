@@ -100,6 +100,22 @@ python src/refresh_plans.py
   요금·데이터·음성·문자가 다 있으므로, **목록을 비교해 신규·변경분의 상세만**
   다시 받습니다(`data/raw_cache/moyo/list_snapshot.json`).
 
+### 사이트 구조가 바뀌었는지 확인
+
+사이트가 개편되면 **에러 없이 데이터만 조용히 사라집니다**(실제로 겪었습니다 —
+`docs/수정이력.md` 35번). 갱신할 때마다 자동으로 진단하지만, 따로 돌릴 수도 있습니다.
+
+```bash
+python src/agents/schema_drift.py
+```
+
+직전에 멀쩡히 파싱되던 소스가 지금은 0행이면 `data/review/drift_YYYY-MM-DD.md`에
+어떤 상품이 안 읽히는지 + 파서 앵커 중 무엇이 사라졌는지 적힙니다.
+**진단만 하고 코드는 안 고칩니다** — 판단은 사람이 합니다.
+
+> 기준선(`data/review/parse_coverage.json`)은 git에 없습니다. 새 컴퓨터에서는
+> 크롤링을 한 번 돌린 뒤 `python src/agents/schema_drift.py --baseline`으로 만듭니다.
+
 ### 매일 자동 실행 등록 (Windows 작업 스케줄러)
 
 관리자 PowerShell에서 한 번만 등록하면 됩니다. 시간은 원하는 대로 바꾸세요.
