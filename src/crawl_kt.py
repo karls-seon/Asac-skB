@@ -101,6 +101,21 @@ def fetch_combined_html(item_code: str) -> str:
             combined_html += "\n" + _get(u)
         except Exception:
             pass
+
+    # 2026-08 개편: 연령별 요금표(tableHTML)가 페이지 안의 <script>에서
+    # **외부 JS 파일**로 빠졌다(예: /static/prodetail/1693/web/js/data/w_basic_data.js).
+    # 이걸 안 받아오면 그 상품의 요금제가 통째로 0건이 된다 - 실제로 초이스·
+    # 초이스더블·베이직·베이직(이월) 4개가 이렇게 사라졌었다(docs/수정이력.md 35번).
+    # 파일명이 상품마다 다르므로(w_choice_data / w_basic_carry_over_data …) 이름을
+    # 하드코딩하지 않고 `js/data/*.js` 경로 패턴으로 찾는다.
+    #
+    # **앞서 붙인 조각까지 포함한** combined_html에서 찾아야 한다. 이 script 태그는
+    # 상세 페이지 본문이 아니라 htmlUploadType 조각 안에 들어있는 경우가 있다.
+    for src in dict.fromkeys(re.findall(r'<script[^>]+src="([^"]*?/js/data/[^"]+\.js)"', combined_html)):
+        try:
+            combined_html += "\n" + _get(f"https://product.kt.com{src}")
+        except Exception:
+            pass
     return combined_html
 
 

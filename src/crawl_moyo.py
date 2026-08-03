@@ -8,9 +8,19 @@ moyoplan.com은 Next.js SSR이라 requests로 받은 HTML에 데이터가 그대
 1) 목록 `/plans?page=N` (10개씩)  -> 요금제 스펙(데이터/통화/문자/망/가격/프로모션)
 2) 상세 `/plans/{id}`              -> 알뜰폰 브랜드명 + 통신사 지급 사은품 + 모요 페이백
    - 브랜드명은 목록 카드에 없고 상세 페이지에만 있다 (<title>의 "[핀다이렉트] ...").
-   - 사은품은 <a href="/gift-group/...">의 aria-label에 이름이 들어있고,
-     본문에 "대상:"/"시기:" 조건이 따라온다.
-   - 모요 제휴 페이백은 "매달 N원 씩 M개월 간" 형태의 안내 문구.
+   - 사은품·페이백은 전부 <a href="/gift-group/...">의 aria-label에 이름이
+     들어있고(모요 제휴 페이백도 여기 포함됨), 본문에 "대상:"/"시기:" 조건이
+     따라온다. "매달 N원 페이백 (M개월)"처럼 **1회분 금액**만 적힌 라벨은
+     총액(1회분 x 개월수)으로 환산해서 저장한다(_recurring_payback_won).
+     단 "페이백"이라는 말이 없는 변형("Npay 5천원 (7만)", "hy 금액권
+     1만원(12만)")은 아직 못 잡는다 - 알려진 한계, docs/수정이력.md 34번 참고.
+   - 목록 카드의 "페이백 포함 월 X원"이 실제 청구액과 다른 경우가 있다(모요가
+     페이백을 미리 뺀 체감가를 보여줌). "N개월 이후 Y원"의 Y로 대체하려던
+     시도를 한 번 했었는데, Y가 "체감가 기간이 끝난 뒤의 미래 가격"인 경우가
+     있어(예: plan 30954 - 카드엔 12,800/7개월 후 43,400이라 나오지만 실제
+     청구액은 17,800) 되돌렸다. discounted_fee는 여전히 카드의 X를 쓴다 -
+     완벽히 정확하진 않지만, 상세페이지의 "월 납부액"을 새로 긁어오기 전까지는
+     이게 그나마 덜 틀린 값이다.
 
 요금제가 2,000개가 넘어서 상세 페이지까지 받으면 요청이 많지만, 혜택(사은품/페이백)이
 전부 상세에만 있어서 생략하면 MVNO 쪽 혜택이 통째로 비어버린다.
@@ -116,6 +126,24 @@ def _parse_krw(text: str):
             continue
         amounts.append(int(value * _KRW_UNIT[m.group(2)]))
     return max(amounts) if amounts else None
+
+
+# "네이버페이 매달 2만원 페이백 (6개월)"처럼 **한 달치 금액**만 적힌 사은품 링크가
+# 있다. 그대로 _parse_krw에 넘기면 한 달치(2만원)가 이 혜택의 전체 가치로 잡혀서
+# 6개월이면 실제 가치(12만원)의 6분의 1로 저평가된다. "매달 …씩 N개월" 구조를
+# 알아보면 총액(1회분 x 개월수)으로 바로잡는다. "평생"처럼 개월 수가 없으면
+# 총액을 낼 수 없으므로 한 달치 금액만 남긴다(과대평가보다는 낫다).
+_RECURRING_PAYBACK_RE = re.compile(r"매달\s*([\d,.]+\s*(?:만|천)?\s*원)\s*(?:씩)?\s*페이백.*?(\d+)\s*개월")
+
+
+def _recurring_payback_won(label: str):
+    m = _RECURRING_PAYBACK_RE.search(label or "")
+    if not m:
+        return None
+    per_month = _parse_krw(m.group(1))
+    if per_month is None:
+        return None
+    return per_month * int(m.group(2))
 
 
 # ---------------- 수집 ----------------
@@ -352,7 +380,6 @@ def parse_detail(plan_id: str, plan_name: str):
         if m:
             brand = m.group(1).strip()
 
-    text = soup.get_text("\n", strip=True)
     benefits = []
 
     for a in soup.select('a[href^="/gift-group/"]'):
@@ -364,17 +391,10 @@ def parse_detail(plan_id: str, plan_name: str):
         detail = " ".join(s.get_text(" ", strip=True) for s in a.select("span") if "대상:" in s.get_text() or "시기:" in s.get_text())
         benefits.append(make_benefit_row(
             plan_id, "", plan_name, "사은품/페이백", label,
-            value_won=_parse_krw(label) or "", detail=detail, source_url=url,
+            value_won=_recurring_payback_won(label) or _parse_krw(label) or "",
+            detail=detail, source_url=url,
         ))
 
-    payback = re.search(r"매달\s*([\d,]+)\s*(원|천원)\s*씩\s*(\d+)\s*개월", text)
-    if payback:
-        amount = payback.group(1).replace(",", "")
-        won = int(amount) * (1000 if payback.group(2) == "천원" else 1)
-        benefits.append(make_benefit_row(
-            plan_id, "", plan_name, "사은품/페이백", f"모요 제휴 페이백 월 {won:,}원",
-            value_won=won * int(payback.group(3)), detail=payback.group(0), source_url=url,
-        ))
     support = parse_support_services(soup)
     support["voice_extra_minutes"] = parse_addon_voice(soup)
     return brand, benefits, support
@@ -456,6 +476,17 @@ def parse_card_only(a_tag) -> dict | None:
     is_payback = "페이백 포함" in card_text
     # 예전엔 "페이백 포함"일 때만 discount_type을 채워서, 프로모션 할인가가
     # 있는데도 할인 종류가 빈 행이 대부분이었다.
+    #
+    # ⚠️ discounted_fee를 실제 청구액으로 바꾸는 시도를 했다가 되돌렸다(2026-08-03).
+    # "페이백 포함 월 X원 N개월 이후 Y원"에서 실제로 지금 청구되는 금액이
+    # X도 Y도 아닌 **제3의 값**인 경우가 있었다(plan 30954: 카드엔 12,800원/
+    # 7개월 이후 43,400원이라고 나오지만, 상세페이지 "월 납부액"은 17,800원 -
+    # Y는 "체감가 기간이 끝난 뒤의 미래 가격"이지 "지금 청구액"이 아니었다).
+    # X를 Y로 바꾸면 이런 플랜의 **진짜 임시 할인**(17,800원이 정가보다 낮다는
+    # 사실) 정보가 통째로 사라진다. 상세페이지 "월 납부액"을 긁어와야 정확한데
+    # 그건 별도 필드 수집이 필요해 아직 안 했다 - 그때까진 X(카드에 적힌 값)를
+    # 그대로 쓴다. X도 정확한 청구액이 아닌 경우가 있다는 걸 알지만(마케팅
+    # 체감가), 최소한 Y로 덮어써서 생기는 새로운 오류보다는 낫다.
     if is_payback:
         discount_type = "모요 프로모션 페이백/할인"
     elif promo_fee != regular_fee:
