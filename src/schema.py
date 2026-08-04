@@ -485,6 +485,13 @@ def expand_select_variants(plan: dict, benefits: list[dict]) -> list[tuple[dict,
     급격히 불어나는 데 비해, SKT가 실제로 쓰는 입도는 "주 OTT 하나"라서
     거기에 맞추는 편이 통신사 간 비교에 일관적이다.
 
+    KT의 "플러스" 그룹은 위 규칙과 무관하게 **절대 primary가 되지 않는다** -
+    사은품/음악 구독처럼 부가 선택지라 항상 작은 쪽인 게 KT 관례인데, "초이스 더블"
+    처럼 경쟁하는 큰 그룹이 아예 없는 페이지에서는 "그룹이 하나뿐이니 그게
+    가장 크다"는 논리로 플러스가 primary가 돼 버려 plan_id가 불필요하게
+    쪼개졌었다(예: 원래 KT 상품 4개 x 플러스 옵션 4개 = 16행). "프리미엄플러스"
+    (LGU+의 진짜 primary 그룹)는 이름이 "플러스"로 시작하지 않으므로 영향 없다.
+
     펼친 행의 혜택 목록에는 **고른 선택지 하나 + 택1이 아닌 나머지 혜택**만 남는다.
     그래서 나중에 혜택 금액을 붙일 때 그냥 sum 하면 되고, "택1 그룹은 max로
     묶어야 한다" 같은 예외 규칙이 필요 없어진다.
@@ -494,10 +501,11 @@ def expand_select_variants(plan: dict, benefits: list[dict]) -> list[tuple[dict,
         if b.get("is_selectable") and b.get("select_group"):
             groups.setdefault(b["select_group"], []).append(b)
     groups = {g: items for g, items in groups.items() if len(items) >= 2}
-    if not groups:
+    expandable = {g: items for g, items in groups.items() if not g.startswith("플러스")}
+    if not expandable:
         return [(plan, benefits)]
 
-    primary = max(groups, key=lambda g: len(groups[g]))
+    primary = max(expandable, key=lambda g: len(expandable[g]))
     chosen_ids = {id(b) for b in groups[primary]}
     others = [b for b in benefits if id(b) not in chosen_ids]
 
