@@ -6,4 +6,5 @@ python-dotenv
 pandas
 numpy
 matplotlib
+seaborn
 jupyter
