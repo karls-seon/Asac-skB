@@ -569,7 +569,12 @@ def table_row_to_unified(
         "source_url": source_url,
         "crawled_at": "",
     }
-    plan["discounted_fee"], plan["discount_type"] = agreement_discount(fee)
+    # 온라인전용(요고)은 무약정 자급제형이라 선택약정 할인 대상이 아니다
+    # (KT 상세페이지에도 할인가가 안 나온다). LGU+ 너겟도 같은 이유로 예외 처리한다.
+    if plan["is_online_only"]:
+        plan["discounted_fee"], plan["discount_type"] = "", ""
+    else:
+        plan["discounted_fee"], plan["discount_type"] = agreement_discount(fee)
     plan.update(summarize_benefits(benefits))
     return plan, benefits
 

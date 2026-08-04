@@ -43,6 +43,9 @@ from schema import (
 )
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+# 통신 3사 자체 브랜드명 -> host_mno 표기. parse_card_only의 "OOO망" 매칭과
+# parse_card의 브랜드(<title>의 "[OOO]") 판별에 공통으로 쓴다.
+HOST_BRAND_MAP = {"KT": "KT", "SKT": "SKT", "LG U+": "LGU+"}
 BASE = "https://www.moyoplan.com"
 LIST_URL = BASE + "/plans?page={page}"
 DETAIL_URL = BASE + "/plans/{plan_id}"
@@ -362,15 +365,36 @@ def parse_addon_voice(soup) -> str:
     return m.group(1) if m else ""
 
 
+def parse_signup_notice(soup) -> str:
+    """상세페이지 "꼭 확인해 주세요" 배너 텍스트(가입 제한/비제휴 등 경고문).
+
+    없는 요금제가 다수(약 73%)라 있는 것만 채운다. 배너 하나에 메시지가
+    여러 개(비제휴 + 번호이동조건 등) 붙는 경우가 있어 ' | '로 모아 담는다.
+    """
+    heading = next((s for s in soup.find_all("span") if s.get_text(strip=True) == "꼭 확인해 주세요"), None)
+    if heading is None or heading.parent is None:
+        return ""
+    # 헤딩 바로 아래 메시지 span은 감싸는 span 안에 다시 span이 중첩된 구조라
+    # find_all("span")로 그냥 훑으면 같은 문구가 두 번 잡힌다. span 자식이
+    # 없는(더 쪼갤 게 없는) span만 진짜 메시지다.
+    texts = [
+        s.get_text(" ", strip=True)
+        for s in heading.parent.find_all("span")
+        if s is not heading and not s.find("span") and s.get_text(strip=True)
+    ]
+    return " | ".join(dict.fromkeys(texts))
+
+
 def parse_detail(plan_id: str, plan_name: str):
-    """returns (mvno_brand, benefit_rows, support)"""
+    """returns (mvno_brand, benefit_rows, support, signup_notice)"""
     path = os.path.join(CACHE_DIR, f"detail_{plan_id}.html")
     if not os.path.exists(path):
-        return "", [], {}, {}
+        return "", [], {}, ""
     with open(path, encoding="utf-8") as f:
         html = f.read()
     soup = BeautifulSoup(html, "html.parser")
     url = DETAIL_URL.format(plan_id=plan_id)
+    signup_notice = parse_signup_notice(soup)
 
     # 브랜드: <title>[핀다이렉트] [모요only] ... | 13,100원 | 모요...</title>
     brand = ""
@@ -397,7 +421,7 @@ def parse_detail(plan_id: str, plan_name: str):
 
     support = parse_support_services(soup)
     support["voice_extra_minutes"] = parse_addon_voice(soup)
-    return brand, benefits, support
+    return brand, benefits, support, signup_notice
 
 
 # ---------------- 목록 카드 파싱 (스펙) ----------------
@@ -446,8 +470,7 @@ def parse_card_only(a_tag) -> dict | None:
 
     # \S+망 처럼 느슨하게 잡으면 "5G망" 같은 문구까지 통신사로 잘못 잡혀서 3사만 매칭
     net_m = re.search(r"(KT|SKT|LG\s*U\+)\s*망", card_text)
-    host_map = {"KT": "KT", "SKT": "SKT", "LG U+": "LGU+"}
-    host_mno = host_map.get(net_m.group(1), net_m.group(1)) if net_m else ""
+    host_mno = HOST_BRAND_MAP.get(net_m.group(1), net_m.group(1)) if net_m else ""
     gen_m = re.search(r"\b(5G|LTE|3G)\b", card_text)
 
     # 모요 카드의 프로모션 표기가 두 종류다. 둘 다 "할인가 + 정가 + 기간"을
@@ -540,13 +563,19 @@ def parse_card(a_tag, now: str):
     if card is None:
         return None, []
 
-    brand, benefits, support = parse_detail(card["plan_id"], card["plan_name"])
+    brand, benefits, support, signup_notice = parse_detail(card["plan_id"], card["plan_name"])
     for b in benefits:
         b["host_mno"] = card["host_mno"]
 
+    # 브랜드가 "KT"/"SKT"/"LG U+" 자체면 알뜰폰이 아니라 통신 3사 자체
+    # 온라인전용 요금제(너겟/요고 등)를 모요가 그대로 중개하는 것이다.
+    # carrier_type을 MVNO로 두면 "알뜰폰"으로 잘못 취급된다.
+    is_mno_brand = brand in HOST_BRAND_MAP
     plan = {
         **card,
-        "mvno_brand": brand,
+        "carrier_type": "MNO" if is_mno_brand else card["carrier_type"],
+        "mvno_brand": "" if is_mno_brand else brand,
+        "signup_notice": signup_notice,
         # 모요 목록 카드에는 테더링 정보가 없다. 상세페이지 "지원" 섹션의
         # "모바일 핫스팟 월 60GB" 에서 가져온다.
         "tethering_gb": support.get("tethering_gb") or "",
