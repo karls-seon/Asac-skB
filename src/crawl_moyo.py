@@ -477,11 +477,15 @@ def parse_card_only(a_tag) -> dict | None:
     qos = re.search(r"([\d.]+)\s*(Kbps|Mbps)", data_text, re.I)
     daily = re.search(r"매일\s*([\d.]+)\s*GB", data_text)
 
-    voice_m = re.search(r"통화\s*(무제한|[\d,]+분)", card_text)
+    # "통화 제공안함"/"문자 제공안함"(데이터 전용 유심)을 못 잡으면 voice_m이
+    # None이 되고, voice_minutes가 빈 값으로 남는다. 빈 값은 컬럼 정의상
+    # "무제한"이라는 뜻이라(docs/컬럼_명세서.md) 실제론 통화가 아예 안 되는
+    # 요금제가 "통화 무제한"으로 둔갑해버린다 - 126/130건(2026-08-06 발견).
+    voice_m = re.search(r"통화\s*(무제한|제공안함|[\d,]+분)", card_text)
     voice_text = voice_m.group(1) if voice_m else ""
     voice_unlimited = voice_text == "무제한"
 
-    sms_m = re.search(r"문자\s*(무제한|[\d,]+건)", card_text)
+    sms_m = re.search(r"문자\s*(무제한|제공안함|[\d,]+건)", card_text)
     sms_text = sms_m.group(1) if sms_m else ""
     sms_unlimited = sms_text == "무제한"
 
@@ -549,9 +553,9 @@ def parse_card_only(a_tag) -> dict | None:
         "data_throttle_speed": f"{qos.group(1)}{qos.group(2)}" if qos else "",
         "daily_data_gb": float(daily.group(1)) if daily else "",
         "voice_unlimited": voice_unlimited,
-        "voice_minutes": "" if voice_unlimited else (to_won(voice_text) or ""),
+        "voice_minutes": "" if voice_unlimited else (0 if voice_text == "제공안함" else (to_won(voice_text) or "")),
         "sms_unlimited": sms_unlimited,
-        "sms_count": "" if sms_unlimited else (to_won(sms_text) or ""),
+        "sms_count": "" if sms_unlimited else (0 if sms_text == "제공안함" else (to_won(sms_text) or "")),
         "monthly_fee": regular_fee,        # 프로모션 종료 후 정상가(없으면 현재가가 정가)
         "discounted_fee": promo_fee,        # 프로모션 적용된 현재 월 납부액
         "discount_type": discount_type,
