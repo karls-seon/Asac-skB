@@ -151,6 +151,8 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     df["monthly_cost"] = df["discounted_fee"].fillna(df["monthly_fee"])
     df["promo_ends_after"] = df["discount_period_months"]
     df["price_after_promo"] = df["monthly_fee"].where(df["discount_period_months"].notna())
+    # 일 단위 제공을 월로 환산한 값. 이후 점수·설명이 전부 이 컬럼을 쓴다.
+    df["monthly_data_gb"] = _monthly_data_gb(df)
 
     budget = profile.get("budget_krw")
     if budget is not None:
@@ -207,6 +209,100 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
         df = df[~blocked]
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# 설명: 점수가 아니라 "요청한 조건과 무엇이 다른가"를 말한다.
+#
+# match_score 0.841937은 사용자에게 아무 의미가 없다. 필요한 건 "통화가 요청한
+# 101~300분이 아니라 100분이라 살짝 부족하다" 같은 문장이다. 조건은 우리가
+# 다 알고 있으므로 요금제마다 조건별로 대조해서 만들면 된다.
+# ---------------------------------------------------------------------------
+
+def _fmt(n) -> str:
+    """숫자를 사람이 읽는 형태로. 15.0 -> "15", 4.5 -> "4.5"."""
+    return f"{n:,.10g}"
+
+
+def shortfalls(row, profile: dict) -> list[str]:
+    """이 요금제가 요청 조건에 **못 미치는** 점. 비어 있으면 조건을 다 만족한다.
+
+    하드 필터를 통과한 행이라도 부족할 수 있다 - 데이터 사용량은 필터가
+    70%까지만 자르기 때문이다(그래야 데이터 축이 판별력을 갖는다).
+    """
+    out = []
+    usage = profile.get("data_usage_gb")
+    gb = row.get("monthly_data_gb")
+    if usage and not row.get("data_unlimited") and pd.notna(gb) and gb < usage:
+        out.append(f"데이터 {_fmt(gb)}GB로 사용량 {_fmt(usage)}GB보다 부족")
+    if profile.get("data_unlimited_required") and not row.get("data_unlimited"):
+        out.append("데이터 무제한 아님")
+    if profile.get("voice_unlimited_required") and not row.get("voice_unlimited"):
+        out.append("통화 무제한 아님")
+    # 감속 없이 정량제면 다 쓰고 나서 초과 과금이다. 요청 조건은 아니지만
+    # 사용자가 모르고 고르면 손해라 부족분과 같은 자리에서 알려준다.
+    if (not row.get("data_unlimited")) and pd.isna(row.get("data_throttle_speed")):
+        out.append("데이터 소진 후 초과 과금")
+    if row.get("tethering_support") == "unsupported":
+        out.append("테더링 불가")
+    return out
+
+
+def strengths(row, profile: dict) -> list[str]:
+    """요청보다 **나은** 점. 부족분만 보여주면 왜 추천했는지가 안 보인다."""
+    out = []
+    budget = profile.get("budget_krw")
+    cost = row.get("monthly_cost")
+    if budget and pd.notna(cost) and cost < budget * 0.7:
+        out.append(f"월 {_fmt(cost)}원으로 예산({_fmt(budget)}원)보다 저렴")
+    usage = profile.get("data_usage_gb")
+    gb = row.get("monthly_data_gb")
+    if row.get("data_unlimited"):
+        out.append("데이터 무제한")
+    elif usage and pd.notna(gb) and gb >= usage * 1.5:
+        out.append(f"데이터 {_fmt(gb)}GB로 사용량의 {gb / usage:.1f}배 여유")
+    if row.get("voice_unlimited") and not profile.get("voice_unlimited_required"):
+        out.append("통화 무제한")
+    if pd.isna(row.get("promo_ends_after")):
+        out.append("프로모션 없이 가격 그대로 유지")
+    return out
+
+
+# 완화해볼 조건과 사람이 읽을 이름. 자격(나이·현재 통신사)은 사용자가 바꿀 수
+# 있는 게 아니라서 후보에 넣지 않는다.
+_RELAXABLE = {
+    "budget_krw": "예산",
+    "data_usage_gb": "데이터 사용량",
+    "data_unlimited_required": "데이터 무제한",
+    "voice_unlimited_required": "통화 무제한",
+    "preferred_network": "통신 세대(5G/LTE)",
+    "target_carrier_type": "통신사 유형",
+}
+
+
+def suggest_relaxation(plans: pd.DataFrame, profile: dict) -> list[str]:
+    """조건이 서로 충돌해 후보가 없을 때, 무엇을 풀면 몇 개가 열리는지.
+
+    "영상 자주 봄 + 월 2만원"처럼 사용자 스스로는 모순을 모르는 경우가 많다.
+    조건을 하나씩 빼고 다시 세어 보면 어느 조건이 막고 있는지 바로 나온다.
+    """
+    out = []
+    for key, label in _RELAXABLE.items():
+        if profile.get(key) in (None, False):
+            continue
+        opened = len(filter_eligible(plans, {k: v for k, v in profile.items() if k != key}))
+        if opened:
+            out.append((opened, f"{label} 조건을 빼면 {opened}개"))
+    out.sort(reverse=True)
+    return [msg for _, msg in out]
+
+
+def cheapest_for(plans: pd.DataFrame, profile: dict) -> float | None:
+    """예산만 빼고 다른 조건을 다 지킬 때 최소 월 납부액. 예산이 원인일 때
+    "얼마면 되는지"를 숫자로 말해주기 위한 것."""
+    relaxed = {k: v for k, v in profile.items() if k != "budget_krw"}
+    df = filter_eligible(plans, relaxed)
+    return None if df.empty else float(df["monthly_cost"].min())
 
 
 def _qos_mbps(speed: pd.Series) -> pd.Series:
@@ -443,14 +539,72 @@ def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.
     ranked = score(eligible, profile, weights or pick_preset(profile))
     cols = ["plan_id", "plan_name", "carrier_type", "host_mno", "monthly_cost",
             "promo_ends_after", "price_after_promo", "data_gb", "data_unlimited",
-            "match_score"]
+            "match_score", "exact_match", "shortfall", "strength"]
     # 조건이 빡세면 후보가 0개일 수 있다. 이때 score()는 점수 컬럼을 못
     # 만들고 빈 프레임을 그대로 돌려주므로, 컬럼을 맞춰서 내보낸다.
     # (호출부가 "결과 없음"과 "에러"를 구분할 수 있어야 한다 - 조건을
     #  완화하라고 안내하려면 크래시가 아니라 빈 결과로 와야 한다.)
     if ranked.empty:
         return pd.DataFrame(columns=cols)
-    return diversify(ranked, profile, top_n)[cols]
+
+    out = diversify(ranked, profile, top_n).copy()
+    gaps = out.apply(lambda r: shortfalls(r, profile), axis=1)
+    out["shortfall"] = gaps.apply(" / ".join)
+    out["strength"] = out.apply(lambda r: " / ".join(strengths(r, profile)), axis=1)
+    out["exact_match"] = gaps.apply(len) == 0
+    return out[cols]
+
+
+def explain(profile: dict, top_n: int = 5) -> str:
+    """추천 결과를 사람이 읽는 답변으로 만든다.
+
+    점수 숫자를 그대로 보여주는 대신 ① 조건을 다 만족하는 게 몇 개인지
+    ② 각 요금제가 요청과 무엇이 다른지 ③ 하나도 없으면 어느 조건을 풀면
+    되는지를 말한다. KT M모바일 AI 추천을 직접 돌려보고 가져온 구조다
+    (2026-08-06) - 거기서 제일 쓸모 있었던 게 "정확히 일치하는 요금제는
+    없습니다"를 먼저 말하고 조건별 차이를 항목으로 적어주는 부분이었다.
+    """
+    plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
+    eligible = filter_eligible(plans, profile)
+
+    if eligible.empty:
+        lines = ["조건을 모두 만족하는 요금제가 없습니다."]
+        cheapest = cheapest_for(plans, profile)
+        budget = profile.get("budget_krw")
+        if budget and cheapest and cheapest > budget:
+            lines.append(f"- 다른 조건을 그대로 두면 최소 월 {_fmt(cheapest)}원이 필요합니다"
+                         f"(현재 예산 {_fmt(budget)}원).")
+        for msg in suggest_relaxation(plans, profile)[:3]:
+            lines.append(f"- {msg}가 후보에 들어옵니다.")
+        return "\n".join(lines)
+
+    result = recommend(profile, top_n=top_n)
+    n_exact = int(result["exact_match"].sum())
+    ranked_all = score(eligible, profile, pick_preset(profile))
+    total_exact = int(
+        (ranked_all.apply(lambda r: len(shortfalls(r, profile)), axis=1) == 0).sum()
+    )
+
+    lines = []
+    if total_exact == 0:
+        lines.append("요청하신 조건에 **정확히** 맞는 요금제는 없습니다. "
+                     "가장 가까운 것들을 어떤 점이 다른지와 함께 보여드립니다.")
+    else:
+        lines.append(f"조건을 모두 만족하는 요금제가 {total_exact}개 있습니다. "
+                     f"성격이 다른 것들로 추려서 보여드립니다.")
+    lines.append("")
+
+    for i, (_, r) in enumerate(result.iterrows(), 1):
+        price = f"월 {_fmt(r['monthly_cost'])}원"
+        if pd.notna(r["promo_ends_after"]):
+            price += (f" ({_fmt(r['promo_ends_after'])}개월 후 "
+                      f"{_fmt(r['price_after_promo'])}원)")
+        lines.append(f"{i}. {r['plan_name']} — {price}")
+        if r["strength"]:
+            lines.append(f"   좋은 점: {r['strength']}")
+        if r["shortfall"]:
+            lines.append(f"   다른 점: {r['shortfall']}")
+    return "\n".join(lines)
 
 
 def demo():
@@ -589,6 +743,26 @@ def demo():
     qs = _qos_score(probe)
     assert qs.iloc[0] == 1.0, "완전 무제한(감속 없음)이 만점이 아님"
     assert qs.iloc[1] == 0.0, "정량제인데 감속 표기 없음(=초과 과금)이 0점이 아님"
+
+    # 설명: 조건과 무엇이 다른지를 말할 수 있어야 한다(점수 숫자는 설명이 아니다).
+    tight = {"data_usage_gb": 8, "budget_krw": 12000, "preferred_network": "5G"}
+    r_tight = recommend(tight)
+    assert not r_tight.empty and (r_tight["strength"] != "").any(), (
+        "추천했는데 좋은 점을 한 줄도 못 대고 있음"
+    )
+    near = r_tight[~r_tight["exact_match"]]
+    if not near.empty:
+        assert (near["shortfall"] != "").all(), "조건 미달인데 무엇이 부족한지가 비어 있음"
+
+    # 조건이 충돌하면 "없다"고 말하고 무엇을 풀면 되는지 알려줘야 한다.
+    impossible = {"data_usage_gb": 30, "budget_krw": 8000,
+                  "preferred_network": "5G", "data_unlimited_required": True}
+    assert filter_eligible(plans, impossible).empty, "충돌 프로필인데 후보가 남음"
+    msg = explain(impossible)
+    assert "없습니다" in msg, f"후보가 없는데 그렇게 말하지 않음:\n{msg}"
+    assert suggest_relaxation(plans, impossible), "완화 제안을 하나도 못 내놓음"
+    print("\n=== 조건 충돌 시 안내 ===")
+    print(msg)
 
     print("\n자체 점검 통과.")
 
