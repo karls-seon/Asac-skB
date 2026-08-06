@@ -37,6 +37,33 @@ DEFAULT_WEIGHTS = {
     "ott": 0.05,
 }
 
+# 이동 방향에 따라 동기가 다르므로 가중치도 다르다.
+#
+# 대상 사용자는 세 갈래다(2026-08-06 결정): MNO->MVNO, MVNO->MVNO, MVNO->MNO.
+# **MNO->MNO는 뺀다.** 타사 번호이동은 단말기 구매에 묶여 있어 요금제 비교로
+# 풀 문제가 아니고, 같은 통신사 안에서 온라인전용(요고/너겟/다이렉트)으로
+# 갈아타는 길은 실제로 막혀 있다 - 그 45개 요금제에 "이미 OO 요금제를 쓰고
+# 있다면 가입할 수 없어요"가 붙어 있다(signup_notice).
+#
+# MVNO->MNO는 비용이 아니라 멤버십/결합/고객센터/품질이 동기라, 가격을 제일
+# 무겁게 둔 기본 가중치를 그대로 쓰면 MNO가 전멸한다. 가격을 낮추고 혜택을
+# 올린 프리셋을 따로 둔다.
+WEIGHT_PRESETS = {
+    # 비용 절감 (MNO->MVNO, MVNO->MVNO). 기본값.
+    "cost_saving": DEFAULT_WEIGHTS,
+    # 통신3사로 올라가기 (MVNO->MNO).
+    # ponytail: 멤버십 등급(membership_grade)을 점수 축으로 안 만들었다.
+    # MNO 선택의 큰 동기인데 지금은 ott 축이 혜택을 대신 재고 있다 -
+    # 이 세그먼트 추천 품질이 실제로 부족하면 membership 축을 추가할 것.
+    "upgrade_to_mno": {
+        "price": 0.20,
+        "data": 0.25,
+        "qos": 0.15,
+        "tethering": 0.10,
+        "ott": 0.30,
+    },
+}
+
 # signup_notice가 "이미 OO 요금제를 쓰고 있다면 이 요금제를 가입할 수
 # 없어요" 형태일 때, 사용자의 현재 통신사와 겹치는지 보려면 이 표기가
 # 필요하다. host_mno 컬럼값("LGU+")과 원문 표기("LG U+")가 다르다.
@@ -99,7 +126,14 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if budget is not None:
         df = df[df["monthly_cost"] <= budget]
 
-    carrier_type = profile.get("preferred_carrier_type")
+    # 통신3사 사용자에게는 통신3사 요금제를 추천하지 않는다(위 WEIGHT_PRESETS
+    # 주석의 범위 결정). 알뜰폰 사용자는 양쪽 다 후보다.
+    if profile.get("current_carrier_type") == "MNO":
+        df = df[df["carrier_type"] == "MVNO"]
+
+    # 어디로 갈지를 사용자가 직접 지정한 경우(알뜰폰 사용자가 통신3사로
+    # 올라가고 싶다는 등). 위 범위 필터보다 뒤에 둬서 범위를 넓히지 못하게 한다.
+    carrier_type = profile.get("target_carrier_type") or profile.get("preferred_carrier_type")
     if carrier_type:
         df = df[df["carrier_type"] == carrier_type]
 
@@ -124,14 +158,6 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if current_carrier:
         blocked = df.apply(lambda r: _current_carrier_blocks(r, current_carrier), axis=1)
         df = df[~blocked]
-
-        # "지금 통신사 그대로" - 번호이동 자체가 번거로워서 안 옮기려는 니즈다.
-        # 그래서 같은 망을 빌려 쓰는 알뜰폰(host_mno는 같지만 사업자가 다름)은
-        # 조건을 충족하지 못한다. carrier_type까지 MNO로 좁혀야 진짜 "그대로"가
-        # 된다. 반대로 현재 알뜰폰 사용자의 "쓰던 브랜드 유지"는 사용자의
-        # mvno_brand를 알아야 하는데 슬롯이 없어서 아직 지원하지 않는다.
-        if profile.get("keep_current_carrier"):
-            df = df[(df["carrier_type"] == "MNO") & (df["host_mno"] == current_carrier)]
 
     return df
 
@@ -309,10 +335,18 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     return df.reset_index(drop=True)
 
 
+def pick_preset(profile: dict) -> dict:
+    """이동 방향에서 가중치 프리셋을 고른다. 사용자에게 따로 묻지 않는다 -
+    현재 통신사 유형과 목표만 있으면 방향은 저절로 정해진다."""
+    if profile.get("target_carrier_type") == "MNO":
+        return WEIGHT_PRESETS["upgrade_to_mno"]
+    return WEIGHT_PRESETS["cost_saving"]
+
+
 def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.DataFrame:
     plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
     eligible = filter_eligible(plans, profile)
-    ranked = score(eligible, profile, weights)
+    ranked = score(eligible, profile, weights or pick_preset(profile))
     cols = ["plan_id", "plan_name", "carrier_type", "host_mno", "monthly_cost",
             "promo_ends_after", "price_after_promo", "data_gb", "data_unlimited",
             "match_score"]
@@ -340,25 +374,37 @@ def demo():
     print("=== 프로필 1: 예산 3만원 / 5G / 10GB ===")
     print(result.to_string(index=False))
 
-    profile_keep = {
+    # 통신3사 사용자 -> 알뜰폰만 추천되어야 한다(MNO->MNO는 범위 밖).
+    profile_mno_user = {
+        "current_carrier_type": "MNO",
         "current_carrier": "KT",
-        "keep_current_carrier": True,
         "user_age": 30,
     }
-    eligible2 = filter_eligible(plans, profile_keep)
-    assert (eligible2["host_mno"] == "KT").all(), "통신사 유지 조건인데 타사 요금제가 남음"
-    assert (eligible2["carrier_type"] == "MNO").all(), "통신사 유지 조건인데 알뜰폰이 남음"
+    eligible2 = filter_eligible(plans, profile_mno_user)
+    assert (eligible2["carrier_type"] == "MVNO").all(), (
+        "통신3사 사용자인데 통신3사 요금제가 후보에 남음(MNO->MNO는 범위 밖)"
+    )
     assert eligible2["signup_notice"].fillna("").str.contains(
         "이미 KT 요금제를 쓰고 있다면"
     ).sum() == 0, "KT 사용자에게 KT 중복가입 제한 요금제가 안 걸러짐"
-    # 만 30세면 "만 18세 이하"/"만 65세 이상" 전용 행은 없어야 한다
     for cond in eligible2["age_condition"].dropna().unique():
         assert _age_eligible(cond, 30), f"만 30세인데 '{cond}' 조건 요금제가 남음"
 
-    result2 = recommend(profile_keep)
+    result2 = recommend(profile_mno_user)
     assert result2["plan_id"].is_unique, "결과에 같은 plan_id가 중복됨"
-    print("\n=== 프로필 2: KT 유지 / 만 30세 ===")
+    print("\n=== 프로필 2: KT 사용중 / 만 30세 -> 알뜰폰 추천 ===")
     print(result2.to_string(index=False))
+
+    # 알뜰폰 사용자 -> 통신3사로 올라가기. 가격 대신 혜택 위주 프리셋이어야 한다.
+    profile_upgrade = {"current_carrier_type": "MVNO", "target_carrier_type": "MNO"}
+    assert pick_preset(profile_upgrade) is WEIGHT_PRESETS["upgrade_to_mno"], (
+        "MVNO->MNO인데 비용절감 프리셋이 선택됨"
+    )
+    assert pick_preset({"current_carrier_type": "MNO"}) is WEIGHT_PRESETS["cost_saving"]
+    result_up = recommend(profile_upgrade)
+    assert (result_up["carrier_type"] == "MNO").all(), "MNO로 올라가려는데 알뜰폰이 추천됨"
+    print("\n=== 프로필 2b: 알뜰폰 사용중 -> 통신3사로 (혜택 위주 프리셋) ===")
+    print(result_up.to_string(index=False))
 
     # 연령 변형이 여러 줄로 새어나오지 않는지: 나이를 안 물어본 경우에도
     # base_plan_id 기준으로는 한 줄이어야 한다.
