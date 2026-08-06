@@ -161,9 +161,13 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if profile.get("data_unlimited_required"):
         df = df[df["data_unlimited"].fillna(False)]
     elif profile.get("data_usage_gb") is not None:
-        # 추정치면 하한을 낮춘다 - 실제 사용량이 추정보다 적을 수 있는데
-        # 추정값으로 딱 자르면 정답인 소용량 요금제가 통째로 사라진다.
-        floor = profile["data_usage_gb"] / _headroom(profile)
+        # 필터는 **명백히 부족한 것만** 자른다(사용량의 70%). 사용량으로 딱
+        # 자르면 통과 후보의 80%가 점수 포화점을 넘어버려서 데이터 축이
+        # 판별을 못 하고, 그 결과 유일하게 연속적인 가격이 순위를 독식한다
+        # (실측: 가격-순위 상관 0.863). 필터와 점수가 같은 조건을 두 번 보면
+        # 점수 쪽이 죽는다 - 필터는 넓게, 판별은 점수가 한다.
+        # 추정치(confidence)면 여기서 더 낮춘다.
+        floor = profile["data_usage_gb"] * 0.7 / _headroom(profile)
         df = df[df["data_unlimited"].fillna(False) | (df["data_gb"].fillna(0) >= floor)]
 
     if profile.get("voice_unlimited_required"):
@@ -365,6 +369,42 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     return df.reset_index(drop=True)
 
 
+def _character(row, usage: float | None) -> tuple:
+    """요금제의 "성격". 같은 성격끼리는 사실상 대체재다.
+
+    점수순으로만 상위 N을 뽑으면 목록이 복제본으로 찬다 - 실측하면 상위 5개가
+    전부 12~20GB에 전부 프로모션 요금제였고, 후보 안에 있던 프로모션 없는
+    안정형 48건과 100GB 이상 대용량 48건은 하나도 안 보였다. 점수가 비슷한
+    건 맞지만 사용자 입장에선 고를 게 없는 목록이다.
+    """
+    promo = "특가" if pd.notna(row.get("promo_ends_after")) else "안정"
+    if row.get("data_unlimited"):
+        data = "무제한"
+    elif usage and pd.notna(row.get("data_gb")) and row["data_gb"] >= usage * 3:
+        data = "대용량"
+    else:
+        data = "적정"
+    return (promo, data)
+
+
+def diversify(ranked: pd.DataFrame, profile: dict, top_n: int) -> pd.DataFrame:
+    """성격이 다른 것부터 한 개씩 뽑고, 남는 자리는 점수순으로 채운다.
+
+    ponytail: 성격을 (프로모션 유무 x 데이터 규모) 2축으로만 나눴다. 통신사나
+    혜택으로도 갈릴 수 있지만, 목록이 복제본이 되는 주된 이유가 이 둘이라
+    거기까지만 한다. 실제로 부족하면 축을 늘릴 것.
+    """
+    usage = profile.get("data_usage_gb")
+    chars = ranked.apply(lambda r: _character(r, usage), axis=1)
+    # ranked는 이미 점수순이므로 각 성격의 첫 행이 그 성격의 최고점이다.
+    best_of_each = ranked[~chars.duplicated()]
+    filler = ranked.drop(index=best_of_each.index)
+    picked = pd.concat([best_of_each, filler]).head(top_n)
+    # 무엇을 뽑을지는 다양성이 정하지만, 보여주는 순서는 점수순이어야 한다.
+    # 안 그러면 목록에서 낮은 점수가 높은 점수 위에 올라와 이상해 보인다.
+    return picked.sort_values("match_score", ascending=False)
+
+
 def pick_preset(profile: dict) -> dict:
     """이동 방향에서 가중치 프리셋을 고른다. 사용자에게 따로 묻지 않는다 -
     현재 통신사 유형과 목표만 있으면 방향은 저절로 정해진다."""
@@ -386,7 +426,7 @@ def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.
     #  완화하라고 안내하려면 크래시가 아니라 빈 결과로 와야 한다.)
     if ranked.empty:
         return pd.DataFrame(columns=cols)
-    return ranked[cols].head(top_n)
+    return diversify(ranked, profile, top_n)[cols]
 
 
 def demo():
@@ -474,6 +514,12 @@ def demo():
     print(
         f"테더링 상태 분포: {ranked1['tethering_support'].value_counts().to_dict()}"
     )
+
+    # 상위 목록이 복제본이면 안 된다. 점수순으로만 뽑으면 실제로 전부
+    # "12~20GB 특가 프로모션"만 나왔고, 후보에 있던 안정형/대용량은 묻혔다.
+    chars = {_character(row, profile_budget["data_usage_gb"]) for _, row in result.iterrows()}
+    assert len(chars) >= 3, f"상위 {len(result)}개의 성격이 {len(chars)}종뿐 - 선택지가 안 됨: {chars}"
+    print(f"상위 목록 성격: {sorted(chars)}")
 
     # 사용량이 추정치(confidence=low)면 확신할 때보다 후보가 넓어지고,
     # 감속 없는 요금제(초과 과금 위험)가 상대적으로 불리해져야 한다.
