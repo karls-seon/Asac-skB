@@ -95,6 +95,38 @@ _HOST_DISPLAY = {"KT": "KT", "SKT": "SKT", "LGU+": "LG U+"}
 CONFIDENCE_HEADROOM = {"high": 1.0, "medium": 1.3, "low": 1.6}
 
 
+def load_plans() -> pd.DataFrame:
+    """최종 CSV를 DataFrame으로. **직접 부르는 건 단독 실행·테스트용이다.**
+
+    그래프에서는 Data Retrieval 노드가 읽어 State에 올린 것을 받아 쓴다
+    (from_rows). 매칭이 파일을 직접 읽으면 어느 시점 데이터로 추천했는지가
+    State에 안 남고, 노드마다 같은 파일을 다시 읽게 된다.
+    """
+    return pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
+
+
+def from_rows(rows: list[dict]) -> pd.DataFrame:
+    """Data Retrieval이 State에 올린 dict 목록을 DataFrame으로.
+
+    csv.DictReader가 준 값은 전부 문자열이라 그대로 쓰면 비교가 다 깨진다
+    (`"15" >= 10`은 TypeError, `"False"`는 참). 숫자·불리언을 되살린다.
+    """
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    num = ["monthly_fee", "discounted_fee", "discount_period_months",
+           "data_gb", "base_data_gb", "extra_data_gb", "daily_data_gb",
+           "tethering_gb", "base_tethering_gb", "extra_tethering_gb",
+           "voice_minutes", "voice_extra_minutes", "sms_count",
+           "benefit_count", "ott_option_count"]
+    for c in [c for c in num if c in df]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    for c in [c for c in ("data_unlimited", "voice_unlimited", "sms_unlimited",
+                          "is_online_only") if c in df]:
+        df[c] = df[c].map({"True": True, "False": False}).astype("boolean")
+    return df.replace({"": None})
+
+
 def _headroom(profile: dict) -> float:
     """데이터 사용량 추정의 불확실 구간 배수. 안 주면 확신한 값으로 본다."""
     return CONFIDENCE_HEADROOM.get(profile.get("data_usage_confidence", "high"), 1.0)
@@ -662,8 +694,9 @@ def pick_preset(profile: dict) -> dict:
     return WEIGHT_PRESETS["cost_saving"]
 
 
-def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.DataFrame:
-    plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
+def recommend(profile: dict, weights: dict | None = None, top_n: int = 5,
+              plans: pd.DataFrame | None = None) -> pd.DataFrame:
+    plans = load_plans() if plans is None else plans
     eligible = filter_eligible(plans, profile)
     ranked = score(eligible, profile, weights)
     cols = ["plan_id", "plan_name", "carrier_type", "host_mno", "monthly_cost",
@@ -684,7 +717,7 @@ def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.
     return out[cols]
 
 
-def match(profile: dict, top_n: int = 5) -> dict:
+def match(profile: dict, top_n: int = 5, plans: pd.DataFrame | None = None) -> dict:
     """Plan Matching 에이전트의 최종 산출물. **사실만** 담은 dict를 돌려준다.
 
     아키텍처 문서(docs/멀티에이전트_아키텍처.md)상 이 에이전트가 State에 쓰는
@@ -698,7 +731,7 @@ def match(profile: dict, top_n: int = 5) -> dict:
       relaxation      후보가 0개일 때 무엇을 풀면 몇 개가 열리는지
       min_cost_krw    예산만 풀었을 때의 최소 월 납부액
     """
-    plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
+    plans = load_plans() if plans is None else plans
     eligible = filter_eligible(plans, profile)
 
     if eligible.empty:
@@ -717,7 +750,7 @@ def match(profile: dict, top_n: int = 5) -> dict:
         (ranked_all.apply(lambda r: len(shortfalls(r, profile)), axis=1) == 0).sum()
     )
     return {
-        "candidates": recommend(profile, top_n=top_n),
+        "candidates": recommend(profile, top_n=top_n, plans=plans),
         "total_exact": total_exact,
         "candidate_count": len(eligible),
         "relaxation": [],
@@ -749,7 +782,7 @@ def _ott_unavailable(plans: pd.DataFrame, eligible: pd.DataFrame, profile: dict)
 
 def demo():
     """assert 기반 자체 점검 + 예시 프로필 3개 실행. python src/agents/scoring_agent.py"""
-    plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
+    plans = load_plans()
 
     profile_budget = {
         "budget_krw": 30000,

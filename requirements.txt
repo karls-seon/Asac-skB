@@ -1,11 +1,12 @@
-requests
-beautifulsoup4
-selenium
+# PoC 4개 에이전트(Orchestrator / User Profiling / Data Retrieval /
+# Plan Matching) 실행에 필요한 것만 남겼다.
 langgraph
-python-dotenv
 openai
+python-dotenv
 pandas
-numpy
-matplotlib
-seaborn
-jupyter
+
+# 아래는 _archive/로 옮긴 코드가 쓰던 것이라 뺐다. 되살릴 때 같이 설치한다.
+#   requests, beautifulsoup4, selenium  -> 수집 파이프라인(_archive/pipeline/)
+#                                          selenium은 LGU+ 수집에만 필요
+#   matplotlib, seaborn, jupyter        -> EDA 노트북(_archive/notebooks/)
+#   numpy                               -> 직접 쓰는 곳이 없다(pandas가 끌어옴)
