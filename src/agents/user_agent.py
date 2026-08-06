@@ -22,6 +22,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from schema import BASE_DIR  # noqa: E402
 
+# Windows 콘솔(cp949)에서 한글이 깨지지 않게 표준출력을 UTF-8로 돌린다.
+# 매번 PYTHONIOENCODING을 붙이게 하면 실행 방법을 설명하기가 번거롭다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 MODEL = "gpt-5"
 
 # scoring_agent.filter_eligible이 실제로 읽는 키만 넣는다. 여기에 없는 슬롯을

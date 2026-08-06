@@ -25,6 +25,11 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from schema import final_path  # noqa: E402
 
+# Windows 콘솔(cp949)에서 한글이 깨지지 않게 표준출력을 UTF-8로 돌린다.
+# 매번 PYTHONIOENCODING을 붙이게 하면 실행 방법을 설명하기가 번거롭다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # EDA(notebooks/eda_plans.ipynb 섹션18) 근거: discounted_fee가 시장에서
 # 가장 크게 갈리는 축(2만원 이하에 56%가 몰림)이라 price를 가장 무겁게 둔다.
 # 나머지는 임시값 - 실사용 피드백 없이는 이게 유일한 근거라, 나중에

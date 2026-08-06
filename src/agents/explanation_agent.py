@@ -24,6 +24,11 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scoring_agent  # noqa: E402
 
+# Windows 콘솔(cp949)에서 한글이 깨지지 않게 표준출력을 UTF-8로 돌린다.
+# 매번 PYTHONIOENCODING을 붙이게 하면 실행 방법을 설명하기가 번거롭다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 
 def _fmt(n) -> str:
     """15.0 -> "15", 4.5 -> "4.5", 26400 -> "26,400"."""
