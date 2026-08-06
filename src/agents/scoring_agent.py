@@ -69,6 +69,23 @@ WEIGHT_PRESETS = {
 # 필요하다. host_mno 컬럼값("LGU+")과 원문 표기("LG U+")가 다르다.
 _HOST_DISPLAY = {"KT": "KT", "SKT": "SKT", "LGU+": "LG U+"}
 
+# 데이터 사용량을 얼마나 믿을 수 있는지에 따른 여유분 배수.
+#
+# "월 10GB 써요"(high)와 "출퇴근에 영상 자주 봐요"(low, 생활패턴에서 추정)는
+# 같은 15GB라도 다뤄야 하는 방식이 다르다. 추정이면 실제 값이 위아래로 벌어질
+# 수 있으므로 ① 후보 하한을 낮춰(실제가 더 적으면 작은 요금제도 정답이다)
+# ② 여유분을 더 높게 쳐준다(모자라면 초과 과금이나 감속을 맞는다).
+#
+# 주의: 이건 "확신이 없으니 이 축을 덜 본다"가 아니다. 그건 정작 중요한데
+# 확신만 없는 조건을 묻어버린다. 여기서 하는 건 값 자체의 불확실 구간을
+# 넓히는 것이고, 축의 비중은 그대로다.
+CONFIDENCE_HEADROOM = {"high": 1.0, "medium": 1.3, "low": 1.6}
+
+
+def _headroom(profile: dict) -> float:
+    """데이터 사용량 추정의 불확실 구간 배수. 안 주면 확신한 값으로 본다."""
+    return CONFIDENCE_HEADROOM.get(profile.get("data_usage_confidence", "high"), 1.0)
+
 
 def _current_carrier_blocks(row, current_carrier: str | None) -> bool:
     """signup_notice에 "이미 {현재 통신사} 쓰면 가입 불가"라고 적혀 있는지.
@@ -144,8 +161,10 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if profile.get("data_unlimited_required"):
         df = df[df["data_unlimited"].fillna(False)]
     elif profile.get("data_usage_gb") is not None:
-        usage = profile["data_usage_gb"]
-        df = df[df["data_unlimited"].fillna(False) | (df["data_gb"].fillna(0) >= usage)]
+        # 추정치면 하한을 낮춘다 - 실제 사용량이 추정보다 적을 수 있는데
+        # 추정값으로 딱 자르면 정답인 소용량 요금제가 통째로 사라진다.
+        floor = profile["data_usage_gb"] / _headroom(profile)
+        df = df[df["data_unlimited"].fillna(False) | (df["data_gb"].fillna(0) >= floor)]
 
     if profile.get("voice_unlimited_required"):
         df = df[df["voice_unlimited"].fillna(False)]
@@ -254,6 +273,14 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
     df = candidates.copy()
 
+    # 사용량이 추정치면 QoS의 가치가 올라간다. 추정이 틀려 데이터를 다 써도
+    # 감속 요금제는 느려질 뿐이지만, 감속이 없는 요금제는 초과 과금을 맞는다
+    # (_qos_score 참고). 즉 QoS는 추정 오차에 대한 보험이고, 오차가 클수록
+    # 보험료를 더 쳐줘야 한다. 축 자체를 덜 보는 게 아니라 더 보는 쪽이다.
+    headroom = _headroom(profile)
+    if headroom > 1.0 and profile.get("data_usage_gb"):
+        w = {**w, "qos": w["qos"] * headroom}
+
     # 가격은 예산이 있으면 **예산 대비**로 잰다. 후보군 min-max로 재면
     # 기준선이 후보 구성에 따라 흔들린다 - 10원짜리 하나가 최저값을 잡으면
     # 나머지 2~3만원대가 전부 0점 근처로 뭉개지고, 후보가 2~3개만 남으면
@@ -278,7 +305,10 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     # (무제한 1Mbps와 200GB 풀속도의 우열은 여기가 아니라 거기서 갈린다).
     usage = profile.get("data_usage_gb")
     if usage:
-        ratio = df["data_gb"] / (usage * 1.5)
+        # 추정치일수록 여유분을 더 높게 쳐준다(포화점이 위로 올라간다).
+        # 확신하는 10GB에겐 15GB면 충분하지만, 추정한 10GB에겐 실제가 더
+        # 클 수 있어서 24GB짜리가 실제로 더 안전하다.
+        ratio = df["data_gb"] / (usage * 1.5 * _headroom(profile))
         ratio[df["data_unlimited"].fillna(False)] = 1.0
         df["_data_score"] = ratio.clip(0, 1).fillna(0.5)
     else:
@@ -444,6 +474,25 @@ def demo():
     print(
         f"테더링 상태 분포: {ranked1['tethering_support'].value_counts().to_dict()}"
     )
+
+    # 사용량이 추정치(confidence=low)면 확신할 때보다 후보가 넓어지고,
+    # 감속 없는 요금제(초과 과금 위험)가 상대적으로 불리해져야 한다.
+    sure = {"data_usage_gb": 10, "preferred_network": "5G"}
+    guess = {**sure, "data_usage_confidence": "low"}
+    n_sure = len(filter_eligible(plans, sure))
+    n_guess = len(filter_eligible(plans, guess))
+    assert n_guess > n_sure, (
+        f"추정치인데 후보가 안 늘어남(확신 {n_sure} vs 추정 {n_guess}) - "
+        "하한을 낮추는 처리가 안 먹었다"
+    )
+    r_sure = score(filter_eligible(plans, sure), sure)
+    r_guess = score(filter_eligible(plans, guess), guess)
+    no_qos = lambda d: d[d["data_throttle_speed"].isna() & ~d["data_unlimited"].fillna(False)]
+    if len(no_qos(r_sure)) and len(no_qos(r_guess)):
+        assert no_qos(r_guess)["match_score"].mean() < no_qos(r_sure)["match_score"].mean(), (
+            "추정치인데 감속 없는(초과 과금) 요금제가 안 불리해짐"
+        )
+    print(f"\n사용량 확신 시 후보 {n_sure}개 / 추정 시 {n_guess}개 (여유분 반영)")
 
     # QoS 단위: 400Kbps가 1Mbps보다 크게 잡히면 안 된다(275건이 Kbps 표기).
     unit = _qos_mbps(pd.Series(["400Kbps", "1Mbps", "10Mbps"]))
