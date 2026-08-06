@@ -46,6 +46,8 @@ target_carrier_type   "MNO" 또는 "MVNO". 옮겨 가고 싶은 쪽을 말했을
 ott_preference        문자열 배열. 예: ["넷플릭스"].
 price_sensitive       불리언. "싼 거 / 저렴한 / 최대한 아끼고 싶다"처럼
                       가격을 우선한다는 뜻을 밝혔을 때만 true.
+tethering_needed      불리언. "노트북/태블릿에 연결", "핫스팟", "테더링"처럼
+                      다른 기기에 데이터를 나눠 쓴다고 밝혔을 때만 true.
 """
 
 # 슬롯이 이만큼도 안 채워지면 추천이 아니라 카탈로그 구경이 된다.
@@ -65,6 +67,7 @@ ASK = {
     "current_carrier": "지금 어느 통신사를 쓰고 계세요?",
     "target_carrier_type": "알뜰폰으로 옮기실 생각이세요, 통신3사를 유지하실 생각이세요?",
     "ott_preference": "넷플릭스처럼 꼭 끼고 싶은 구독 서비스가 있으세요?",
+    "tethering_needed": "노트북이나 태블릿에 휴대폰 데이터를 연결해서 쓰시나요?",
 }
 
 PROMPT = f"""너는 한국 휴대폰 요금제 상담의 슬롯 추출기다.
@@ -128,7 +131,7 @@ _ALLOWED = {
     "data_unlimited_required", "voice_unlimited_required",
     "preferred_network", "user_age", "current_carrier_type",
     "current_carrier", "target_carrier_type", "ott_preference",
-    "price_sensitive",
+    "price_sensitive", "tethering_needed",
 }
 
 

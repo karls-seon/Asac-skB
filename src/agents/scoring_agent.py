@@ -39,7 +39,14 @@ DEFAULT_WEIGHTS = {
     "data": 0.30,
     "qos": 0.15,
     "tethering": 0.10,
+    # 사용자가 특정 OTT를 콕 집었을 때만 켜지는 축이라 여기 값은 하한이다
+    # (켜지면 아래 score()에서 0.25로 올린다).
     "ott": 0.05,
+    # 멤버십 등급·부가 혜택. OTT를 콕 집지 않아도 항상 켜진다 - 통신3사로
+    # 올라가려는 사용자의 동기가 대부분 여기 있는데, 예전엔 그 동기를 ott
+    # 축에 얹어 뒀다가 "선호를 안 밝히면 축이 통째로 빠져서" 프리셋이
+    # 무력화됐다(upgrade_to_mno의 ott 0.30이 한 번도 안 쓰였다).
+    "benefit": 0.00,
 }
 
 # 이동 방향에 따라 동기가 다르므로 가중치도 다르다.
@@ -56,16 +63,17 @@ DEFAULT_WEIGHTS = {
 WEIGHT_PRESETS = {
     # 비용 절감 (MNO->MVNO, MVNO->MVNO). 기본값.
     "cost_saving": DEFAULT_WEIGHTS,
-    # 통신3사로 올라가기 (MVNO->MNO).
-    # ponytail: 멤버십 등급(membership_grade)을 점수 축으로 안 만들었다.
-    # MNO 선택의 큰 동기인데 지금은 ott 축이 혜택을 대신 재고 있다 -
-    # 이 세그먼트 추천 품질이 실제로 부족하면 membership 축을 추가할 것.
+    # 통신3사로 올라가기 (MVNO->MNO). 동기가 비용이 아니라 멤버십·결합·품질이라
+    # 가격을 낮추고 혜택(benefit)을 올린다. 예전엔 이 자리를 ott가 맡았는데,
+    # ott는 사용자가 특정 서비스를 콕 집어야만 켜지는 축이라 대부분의 경우
+    # 통째로 빠지면서 프리셋이 아무 일도 안 했다.
     "upgrade_to_mno": {
         "price": 0.20,
         "data": 0.25,
-        "qos": 0.15,
+        "qos": 0.10,
         "tethering": 0.10,
-        "ott": 0.30,
+        "ott": 0.05,
+        "benefit": 0.30,
     },
 }
 
@@ -405,7 +413,7 @@ def _qos_score(df: pd.DataFrame, profile: dict) -> pd.Series:
     return out
 
 
-def _tethering_score(df: pd.DataFrame) -> pd.Series:
+def _tethering_score(df: pd.DataFrame, profile: dict) -> pd.Series:
     """테더링 점수. tethering_gb가 비는 이유가 셋이고 의미가 정반대다
     (tethering_support 컬럼, docs/컬럼_명세서.md 참고).
 
@@ -423,10 +431,30 @@ def _tethering_score(df: pd.DataFrame) -> pd.Series:
     support = df["tethering_support"].fillna("undisclosed")
     score = _minmax(df["tethering_gb"], higher_is_better=True)
     score[support == "unsupported"] = 0.0
+    # 사용자가 테더링을 쓴다고 밝히지 않았으면 "없어도 그만"이다. 미지원을
+    # 0점으로 두면 전체의 36%가 이유 없이 밀려난다 - 물어보지도 않은 조건으로
+    # 후보를 깎는 셈이다. 판정을 중립 쪽으로 되돌려 tie-breaker 정도로만 쓴다.
+    if not profile.get("tethering_needed"):
+        score = 0.5 + (score - 0.5) * 0.3
     # 별도 한도가 없을 뿐 기본 데이터를 그대로 쓸 수 있으니, 데이터 축에서
     # 받은 점수를 그대로 가져온다(데이터가 넉넉하면 테더링도 넉넉한 셈).
     score[support == "within_data"] = df.loc[support == "within_data", "_data_score"]
     return score
+
+
+# 멤버십 등급을 점수로. 통신3사만 주는 혜택이라 알뜰폰은 자연히 0이 된다.
+_MEMBERSHIP_RANK = {"VVIP": 1.0, "VIP": 0.6}
+
+
+def _benefit_score(df: pd.DataFrame) -> pd.Series:
+    """멤버십 등급 + 딸린 혜택 수. 통신3사로 올라가려는 사용자의 동기다.
+
+    등급을 주로 보고(가장 뚜렷한 차이) 혜택 개수를 보조로 섞는다. 개수만
+    쓰면 자잘한 혜택을 여러 개 붙인 요금제가 VVIP 요금제를 이긴다.
+    """
+    grade = df["membership_grade"].map(_MEMBERSHIP_RANK).fillna(0.0)
+    count = _minmax(df["benefit_count"], higher_is_better=True)
+    return 0.7 * grade + 0.3 * count
 
 
 def _minmax(series: pd.Series, higher_is_better: bool) -> pd.Series:
@@ -458,7 +486,10 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     if candidates.empty:
         return candidates
 
-    w = {**DEFAULT_WEIGHTS, **(weights or {})}
+    # 기본값은 DEFAULT_WEIGHTS가 아니라 **프로필에 맞는 프리셋**이다. 예전엔
+    # DEFAULT_WEIGHTS를 깔아서, score()를 직접 부르면 MNO 업그레이드 프리셋이
+    # 조용히 무시됐다(match()만 프리셋을 넘기고 있었다).
+    w = {**pick_preset(profile), **(weights or {})}
     df = candidates.copy()
 
     # 사용량이 추정치면 QoS의 가치가 올라간다. 추정이 틀려 데이터를 다 써도
@@ -525,7 +556,8 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
         )
         df["_data_score"] = _minmax(data_score, higher_is_better=True)
 
-    df["_tethering_score"] = _tethering_score(df)
+    df["_tethering_score"] = _tethering_score(df, profile)
+    df["_benefit_score"] = _benefit_score(df)
 
     ott_pref = profile.get("ott_preference") or []
     if ott_pref:
@@ -550,6 +582,9 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
         # 후보가 전부 undisclosed일 때만 판별력이 없다.
         "tethering": (df["tethering_support"].fillna("undisclosed") != "undisclosed").any(),
         "ott": bool(ott_pref),
+        # 멤버십·혜택은 어느 프로필에서나 잴 수 있다. 다만 기본 가중치가
+        # 0이라 upgrade_to_mno 프리셋에서만 실제로 순위를 움직인다.
+        "benefit": w.get("benefit", 0) > 0,
     }
     active = {k: v for k, v in w.items() if informative.get(k)}
     total = sum(active.values()) or 1.0
@@ -630,7 +665,7 @@ def pick_preset(profile: dict) -> dict:
 def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.DataFrame:
     plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
     eligible = filter_eligible(plans, profile)
-    ranked = score(eligible, profile, weights or pick_preset(profile))
+    ranked = score(eligible, profile, weights)
     cols = ["plan_id", "plan_name", "carrier_type", "host_mno", "monthly_cost",
             "promo_ends_after", "price_after_promo", "data_gb", "data_unlimited",
             "match_score", "exact_match", "shortfall", "strength"]
@@ -677,7 +712,7 @@ def match(profile: dict, top_n: int = 5) -> dict:
             "profile": profile,
         }
 
-    ranked_all = score(eligible, profile, pick_preset(profile))
+    ranked_all = score(eligible, profile)
     total_exact = int(
         (ranked_all.apply(lambda r: len(shortfalls(r, profile)), axis=1) == 0).sum()
     )
@@ -783,17 +818,35 @@ def demo():
 
     # 테더링 빈칸 셋(미지원/제공량 내/미공개)이 서로 다른 점수를 받아야 한다.
     # 하나로 뭉치면 "테더링 못 씀"과 "데이터 전량 테더링 가능"이 같아진다.
-    unsupported = ranked1["tethering_support"] == "unsupported"
-    within = ranked1["tethering_support"] == "within_data"
+    # 테더링을 쓴다고 밝혔을 때만 미지원이 0점이 된다. 안 밝혔으면 물어보지도
+    # 않은 조건으로 후보의 36%를 깎는 셈이라 중립 쪽으로 되돌린다.
+    need = {**profile_budget, "tethering_needed": True}
+    ranked_teth = score(filter_eligible(plans, need), need)
+    unsupported = ranked_teth["tethering_support"] == "unsupported"
+    within = ranked_teth["tethering_support"] == "within_data"
     if unsupported.any():
-        assert (ranked1.loc[unsupported, "_tethering_score"] == 0).all(), (
-            "테더링 미지원인데 0점이 아님"
+        assert (ranked_teth.loc[unsupported, "_tethering_score"] == 0).all(), (
+            "테더링이 필요하다는데 미지원 요금제가 0점이 아님"
         )
     if within.any():
         assert (
-            ranked1.loc[within, "_tethering_score"]
-            == ranked1.loc[within, "_data_score"]
+            ranked_teth.loc[within, "_tethering_score"]
+            == ranked_teth.loc[within, "_data_score"]
         ).all(), "within_data인데 데이터 점수를 안 따라감"
+    no_need = ranked1["tethering_support"] == "unsupported"
+    if no_need.any():
+        assert (ranked1.loc[no_need, "_tethering_score"] > 0).all(), (
+            "테더링을 안 물어봤는데 미지원을 0점으로 깎고 있음"
+        )
+
+    # upgrade_to_mno 프리셋은 혜택 축이 실제로 켜져야 의미가 있다. 예전엔
+    # 그 자리를 ott가 맡았는데 사용자가 OTT를 콕 집지 않으면 축이 통째로
+    # 빠져서 프리셋이 아무 일도 안 했다.
+    up = {"target_carrier_type": "MNO", "data_usage_gb": 10}
+    up_ranked = score(filter_eligible(plans, up), up)
+    assert "benefit" in up_ranked.attrs["scored_axes"], (
+        f"MNO 업그레이드인데 혜택 축이 안 켜짐: {up_ranked.attrs['scored_axes']}"
+    )
     print(
         f"테더링 상태 분포: {ranked1['tethering_support'].value_counts().to_dict()}"
     )
