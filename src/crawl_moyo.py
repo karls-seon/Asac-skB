@@ -310,23 +310,44 @@ def parse_support_services(soup) -> dict:
     (예: 너겟49는 LG U+ 원본에도 "테더링+쉐어링 60GB"로 나오는데 모요 카드에는 없다.)
 
     "월 60GB 이용 가능"은 용량이 있는 경우, "데이터 제공량 내 이용 가능"은
-    별도 할당 없이 기본 데이터에서 차감하는 경우다. 후자는 값을 비워 둔다.
+    별도 할당 없이 기본 데이터에서 차감하는 경우다. 후자는 용량을 비워 둔다.
+
+    **지원 여부는 렌더된 섹션이 아니라 <meta name="description">에서 읽는다.**
+    이 섹션이 통째로 안 실린 캐시 페이지가 많은데(_detail_incomplete가 잡는
+    그 케이스), 메타 설명에는 "모바일 핫스팟 제공"이 항상 들어 있어서
+    캐시가 불완전해도 지원/미지원은 알 수 있다. 섹션만 보면 실제로는 테더링이
+    안 되는 요금제 상당수를 "미공개"로 오인한다(전수 확인: 섹션 기준 79건 ->
+    메타 기준 1,023건).
+
+    tethering_gb를 비우는 이유가 세 가지(미지원/제공량 내/미공개)나 되는데
+    셋의 의미가 정반대라, 어느 쪽인지를 tethering_support에 따로 남긴다.
+    안 그러면 "테더링 못 씀"과 "데이터 전량 테더링 가능"이 같은 빈칸이 된다.
 
     클래스명이 Tailwind 해시라 클래스로 찾으면 배포마다 깨진다. "지원"이라고
     적힌 라벨을 찾아 그 컨테이너의 **텍스트**에서 뽑는다. 항목명("모바일 핫스팟")과
     부가설명("월 60GB 이용 가능")이 서로 다른 깊이의 요소에 들어있어서, 특정
     요소를 집으려 하면 둘 중 하나만 잡힌다.
     """
+    meta = soup.find("meta", attrs={"name": "description"})
+    if meta and "모바일 핫스팟 제공" not in (meta.get("content") or ""):
+        return {"tethering_gb": None, "tethering_support": "unsupported"}
+
     label = next((e for e in soup.find_all("span") if e.get_text(strip=True) == "지원"), None)
     if label is None or label.parent is None:
-        return {}
+        return {"tethering_support": "undisclosed"}
 
     section = re.sub(r"\s+", " ", label.parent.get_text(" ", strip=True))
     m = _HOTSPOT_RE.search(section)
     if not m:
-        return {}
+        return {"tethering_support": "undisclosed"}
+
     note = m.group(1)
-    return {"tethering_gb": None if is_non_benefit_share(note) else to_gb(note)}
+    if is_non_benefit_share(note):
+        return {"tethering_gb": None, "tethering_support": "within_data"}
+    gb = to_gb(note)
+    if gb is None:
+        return {"tethering_support": "undisclosed"}
+    return {"tethering_gb": gb, "tethering_support": "quota"}
 
 
 # "모바일 핫스팟" 뒤부터 다음 항목명 전까지가 그 항목의 설명이다.
@@ -600,6 +621,7 @@ def parse_card(a_tag, now: str):
         # 모요 목록 카드에는 테더링 정보가 없다. 상세페이지 "지원" 섹션의
         # "모바일 핫스팟 월 60GB" 에서 가져온다.
         "tethering_gb": support.get("tethering_gb") or "",
+        "tethering_support": support.get("tethering_support", ""),
         # 상세페이지 "부가통화" 항목에서 가져온다(목록 카드엔 없음).
         "voice_extra_minutes": support.get("voice_extra_minutes") or "",
         "crawled_at": now,

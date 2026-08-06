@@ -102,6 +102,12 @@ PLAN_COLUMNS = [
     "base_tethering_gb",                        # 기본 테더링/공유데이터 제공량
     "extra_tethering_gb",                         # 나이 조건으로 추가되는 테더링량(없으면 빈값)
     "tethering_gb",                                 # 총 테더링 제공량 = base_tethering_gb + extra_tethering_gb
+    # tethering_gb가 비는 이유가 셋(미지원/데이터 제공량 내/미공개)인데 의미가
+    # 정반대라 따로 남긴다. quota=별도 한도 있음(tethering_gb에 값) /
+    # within_data=별도 한도 없이 기본 데이터에서 차감(테더링 자체는 됨) /
+    # unsupported=테더링 못 씀 / undisclosed=사이트가 값을 안 알려줌.
+    # 지금은 모요만 넷을 구분하고, 3사는 값 유무로 quota/undisclosed만 채운다.
+    "tethering_support",
     "voice_unlimited",
     "voice_minutes",
     "voice_extra_minutes",                  # 영상/부가통화(분)
@@ -457,6 +463,13 @@ def write_plans(rows, path):
             row["base_data_gb"] = row.get("data_gb", "")
         if row.get("base_tethering_gb", "") == "":
             row["base_tethering_gb"] = row.get("tethering_gb", "")
+        # 모요만 넷을 구분해서 직접 채운다. 나머지 3사는 "지원/미지원" 섹션 자체가
+        # 없어서 값이 있으면 quota, 없으면 undisclosed까지만 말할 수 있다.
+        # 없는 걸 unsupported라고 단정하면 안 된다 - 실제로 미공시일 뿐이다.
+        if not row.get("tethering_support"):
+            row["tethering_support"] = (
+                "quota" if row.get("tethering_gb", "") != "" else "undisclosed"
+            )
         # 택1로 펼치지 않은 행도 base_plan_id를 비워두지 않는다. 그래야
         # "실제 요금제 수"를 언제나 nunique(base_plan_id) 하나로 셀 수 있다.
         if not row.get("base_plan_id"):
