@@ -39,17 +39,19 @@ from data_retrieval_agent import data_retrieval_agent  # noqa: E402
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-# 자동으로 풀어도 되는 조건. **예산은 절대 넣지 않는다** - 못 낼 요금제를
-# 보여주는 건 아무것도 안 보여주는 것보다 나쁘다. 예산이 문제일 때는 완화
-# 대신 "최소 얼마가 필요한지"(min_cost_krw)를 State에 남겨 사용자가 정하게 한다.
-# 순서는 "풀었을 때 사용자가 덜 손해 보는" 순이다. data_usage_gb는 풀면
-# 실제로 데이터가 모자란 요금제를 주게 되므로 제일 뒤에 둔다.
+# 자동으로 풀어도 되는 조건. 순서는 "풀었을 때 사용자가 덜 손해 보는" 순이다.
+#
+# **예산(budget_krw)과 사용량(data_usage_gb)은 절대 넣지 않는다.** 예산을
+# 풀면 못 낼 요금제를, 사용량을 풀면 데이터가 모자란 요금제를 추천하게 된다.
+# 둘 다 아무것도 안 보여주는 것보다 나쁜 결과다(실측: "100원에 200GB"를
+# 요구했더니 사용량을 풀어서 15GB짜리를 1위로 내놓았다). 이 둘이 원인일
+# 때는 완화 대신 "최소 얼마가 필요한지"(min_cost_krw)를 State에 남겨
+# 사용자가 직접 정하게 한다.
 AUTO_RELAXABLE = (
     "preferred_network",
     "data_unlimited_required",
     "voice_unlimited_required",
     "target_carrier_type",
-    "data_usage_gb",
 )
 MAX_RETRY = 2
 
@@ -132,6 +134,9 @@ def _show(state: AppState) -> None:
     """State를 사람이 볼 수 있게 찍는다. 자연어 리포트를 만드는 게 아니라
     (그건 제외된 Explanation 몫) State가 제대로 찼는지 확인하는 용도다."""
     print(f"[슬롯] {state.get('user_profile')}")
+    if state.get("relaxed_slots"):
+        # 완화 후 프로필을 그대로 찍으면 "원래 뭘 요구했는지"가 안 보인다.
+        print(f"[원래 요구] {state['relaxed_slots']} 조건이 위에서 빠져 있음")
     if not state.get("profiling_complete"):
         print("[중단] 슬롯 부족 - 되물어야 함")
         for q in state.get("profiling_questions", []):
@@ -184,6 +189,20 @@ def demo():
         "예산을 자동으로 풀었다 - 못 낼 요금제를 보여주게 된다"
     )
     _show(state)
+
+    # 사용량은 자동으로 풀면 안 된다. 풀면 데이터가 모자란 요금제를 추천하게
+    # 되고 사용자는 초과 요금을 맞는다("100원에 200GB"로 실측).
+    impossible = {**seed, "user_profile": {"data_usage_gb": 200, "budget_krw": 100},
+                  "relaxed_slots": [], "matching_retry_count": 0}
+    out = sub.compile().invoke(impossible)
+    assert "data_usage_gb" not in out["relaxed_slots"], (
+        "사용량을 자동으로 풀었다 - 데이터가 모자란 요금제를 주게 된다"
+    )
+    assert out["match_result"]["candidate_count"] == 0, "불가능한 조건인데 후보가 남음"
+    assert out["match_result"]["min_cost_krw"], "최소 필요 금액을 못 알려줌"
+    print(f"\n[불가능 조건] 후보 0개 + 최소 필요 금액 "
+          f"{out['match_result']['min_cost_krw']:,.0f}원 안내")
+
     print("\n자체 점검 통과.")
 
 
