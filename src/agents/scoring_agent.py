@@ -244,6 +244,11 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if profile.get("voice_unlimited_required"):
         df = df[df["voice_unlimited"].fillna(False)]
 
+    # 통화 무제한이면 문자도 무제한인 게 보통이지만 53개는 아니다(문자만
+    # 180건 같은 식). "전화·문자 무제한"을 요구했는데 문자가 빠지면 안 된다.
+    if profile.get("sms_unlimited_required"):
+        df = df[df["sms_unlimited"].fillna(False)]
+
     user_age = profile.get("user_age")
     if user_age is not None:
         df = df[df["age_condition"].apply(lambda c: _age_eligible(c, user_age))]
@@ -289,6 +294,8 @@ def shortfalls(row, profile: dict) -> list[dict]:
         out.append({"code": "data_not_unlimited", "field": "data"})
     if profile.get("voice_unlimited_required") and not row.get("voice_unlimited"):
         out.append({"code": "voice_not_unlimited", "field": "voice"})
+    if profile.get("sms_unlimited_required") and not row.get("sms_unlimited"):
+        out.append({"code": "sms_not_unlimited", "field": "sms"})
     # 감속 없이 정량제면 다 쓰고 나서 초과 과금이다. 요청 조건은 아니지만
     # 사용자가 모르고 고르면 손해라 부족분과 같은 자리에서 알려준다.
     if (not row.get("data_unlimited")) and pd.isna(row.get("data_throttle_speed")):
@@ -346,6 +353,7 @@ _RELAXABLE = {
     "data_usage_gb": "데이터 사용량",
     "data_unlimited_required": "데이터 무제한",
     "voice_unlimited_required": "통화 무제한",
+    "sms_unlimited_required": "문자 무제한",
     "preferred_network": "통신 세대(5G/LTE)",
     "target_carrier_type": "통신사 유형",
 }
@@ -921,6 +929,20 @@ def demo():
             "추정치인데 감속 없는(초과 과금) 요금제가 안 불리해짐"
         )
     print(f"\n사용량 확신 시 후보 {n_sure}개 / 추정 시 {n_guess}개 (여유분 반영)")
+
+    # "전화·문자 무제한"을 요구하면 문자까지 지켜져야 한다. 통화만 무제한이고
+    # 문자는 제한인 요금제가 53개 있어서 통화 조건만으로는 안 걸러진다.
+    both = {**profile_budget, "voice_unlimited_required": True,
+            "sms_unlimited_required": True}
+    cand_both = filter_eligible(plans, both)
+    assert cand_both["sms_unlimited"].fillna(False).all(), (
+        "문자 무제한을 요구했는데 문자 제한 요금제가 남음"
+    )
+    voice_only = filter_eligible(plans, {**profile_budget,
+                                         "voice_unlimited_required": True})
+    assert len(cand_both) < len(voice_only), (
+        "문자 조건을 걸었는데 후보가 안 줄었다 - 필터가 안 먹었다"
+    )
 
     # QoS 단위: 400Kbps가 1Mbps보다 크게 잡히면 안 된다(275건이 Kbps 표기).
     unit = _qos_mbps(pd.Series(["400Kbps", "1Mbps", "10Mbps"]))

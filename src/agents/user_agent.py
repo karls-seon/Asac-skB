@@ -38,6 +38,7 @@ data_usage_confidence "high"=사용자가 GB를 직접 말함 / "medium"=대략 
                       "low"=생활패턴("출퇴근에 영상")에서 추정.
 data_unlimited_required  불리언. 무제한을 명시적으로 원할 때만 true.
 voice_unlimited_required 불리언. 통화 무제한을 명시적으로 원할 때만 true.
+sms_unlimited_required   불리언. 문자 무제한을 명시적으로 원할 때만 true.
 preferred_network     "5G" 또는 "LTE".
 user_age              정수. 나이.
 current_carrier_type  "MNO"(통신3사) 또는 "MVNO"(알뜰폰). 지금 쓰는 것.
@@ -62,6 +63,7 @@ ASK = {
     "preferred_network": "지금 쓰시는 게 5G인가요, LTE인가요?",
     "data_unlimited_required": "데이터는 무제한이어야 할까요?",
     "voice_unlimited_required": "통화는 무제한이어야 할까요?",
+    "sms_unlimited_required": "문자도 무제한이어야 할까요?",
     "user_age": "나이가 어떻게 되세요? 연령 전용 요금제가 더 쌀 수 있어요.",
     "current_carrier_type": "지금 통신3사를 쓰시나요, 알뜰폰을 쓰시나요?",
     "current_carrier": "지금 어느 통신사를 쓰고 계세요?",
@@ -92,6 +94,11 @@ PROMPT = f"""너는 한국 휴대폰 요금제 상담의 슬롯 추출기다.
   하루 종일 스트리밍 50GB 이상.
 - "무제한"이라는 말이 나오면 data_unlimited_required를 true로.
 - "통화를 많이 한다 / 통화 위주"는 voice_unlimited_required를 true로 넣어라.
+  "전화·문자 무제한"처럼 문자까지 말하면 sms_unlimited_required도 true로.
+  "무제한 원하는데 데이터는 1기가면 돼요"처럼 **데이터를 따로 떼어 말하면**
+  그 "무제한"은 데이터가 아니라 통화와 문자를 가리킨다("데이터는"의 '는'이
+  대조를 만든다). 이때는 voice_unlimited_required와 sms_unlimited_required를
+  **둘 다** true로 넣고, data_unlimited_required는 넣지 마라.
   데이터도 마찬가지로 "데이터 많이 쓴다"만 있고 숫자가 없으면 추정치를 넣되
   confidence를 "low"로 하라.
 - "50대", "30대", "스무살", "군인"처럼 나이를 짐작할 수 있는 표현이 나오면
@@ -137,7 +144,7 @@ def _call_llm(text: str) -> str:
 
 _ALLOWED = {
     "budget_krw", "data_usage_gb", "data_usage_confidence",
-    "data_unlimited_required", "voice_unlimited_required",
+    "data_unlimited_required", "voice_unlimited_required", "sms_unlimited_required",
     "preferred_network", "user_age", "current_carrier_type",
     "current_carrier", "target_carrier_type", "ott_preference",
     "price_sensitive", "tethering_needed",

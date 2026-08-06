@@ -45,6 +45,8 @@ def _say_shortfall(f: dict) -> str:
         return "데이터 무제한 아님"
     if code == "voice_not_unlimited":
         return "통화 무제한 아님"
+    if code == "sms_not_unlimited":
+        return "문자 무제한 아님"
     if code == "overage_risk":
         return "데이터를 다 쓰면 속도 제한이 아니라 초과 요금이 붙음"
     if code == "no_tethering":
