@@ -87,6 +87,19 @@ def _headroom(profile: dict) -> float:
     return CONFIDENCE_HEADROOM.get(profile.get("data_usage_confidence", "high"), 1.0)
 
 
+def _monthly_data_gb(df: pd.DataFrame) -> pd.Series:
+    """월 환산 데이터 제공량. 일 단위 제공 요금제는 daily_data_gb에만 값이
+    있고 data_gb는 비어 있어서(월 총량 개념이 없음) 그대로 쓰면 "데이터를
+    아예 안 주는 요금제"로 오인된다 - 실제로 62건이 이 상태다.
+    30일로 환산해 같은 잣대에 올린다."""
+    return df["data_gb"].fillna(df["daily_data_gb"] * 30)
+
+
+def _has_data(df: pd.DataFrame) -> pd.Series:
+    """데이터를 조금이라도 주는 요금제인지. 무제한/월단위/일단위 셋 중 하나."""
+    return df["data_unlimited"].fillna(False) | _monthly_data_gb(df).notna()
+
+
 def _current_carrier_blocks(row, current_carrier: str | None) -> bool:
     """signup_notice에 "이미 {현재 통신사} 쓰면 가입 불가"라고 적혀 있는지.
 
@@ -158,6 +171,13 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
     if network:
         df = df[df["network_gen"] == network]
 
+    # 데이터를 아예 안 주는 음성전용 요금제(KT 음성 12.1, SKT 표준요금제 등
+    # 19건)는 휴대폰 요금제를 찾는 사람에게 답이 될 수 없다. 사용자가 데이터를
+    # 언급하지 않았어도(=조건이 없어도) 후보에 넣으면 안 된다 - 실제로 이것들이
+    # 값이 싸다는 이유만으로 상위에 올라왔다. 명시적으로 원할 때만 남긴다.
+    if not profile.get("voice_only_ok"):
+        df = df[_has_data(df)]
+
     if profile.get("data_unlimited_required"):
         df = df[df["data_unlimited"].fillna(False)]
     elif profile.get("data_usage_gb") is not None:
@@ -168,7 +188,7 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
         # 점수 쪽이 죽는다 - 필터는 넓게, 판별은 점수가 한다.
         # 추정치(confidence)면 여기서 더 낮춘다.
         floor = profile["data_usage_gb"] * 0.7 / _headroom(profile)
-        df = df[df["data_unlimited"].fillna(False) | (df["data_gb"].fillna(0) >= floor)]
+        df = df[df["data_unlimited"].fillna(False) | (_monthly_data_gb(df).fillna(0) >= floor)]
 
     if profile.get("voice_unlimited_required"):
         df = df[df["voice_unlimited"].fillna(False)]
@@ -312,11 +332,11 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
         # 추정치일수록 여유분을 더 높게 쳐준다(포화점이 위로 올라간다).
         # 확신하는 10GB에겐 15GB면 충분하지만, 추정한 10GB에겐 실제가 더
         # 클 수 있어서 24GB짜리가 실제로 더 안전하다.
-        ratio = df["data_gb"] / (usage * 1.5 * _headroom(profile))
+        ratio = _monthly_data_gb(df) / (usage * 1.5 * _headroom(profile))
         ratio[df["data_unlimited"].fillna(False)] = 1.0
         df["_data_score"] = ratio.clip(0, 1).fillna(0.5)
     else:
-        data_score = df["data_gb"].copy()
+        data_score = _monthly_data_gb(df).copy()
         data_score[df["data_unlimited"].fillna(False)] = (
             data_score.max() if data_score.notna().any() else 999
         )
@@ -339,7 +359,7 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     # (테더링 71%, QoS 31% 결측이라 후보군에 따라 실제로 자주 일어난다.)
     informative = {
         "price": True,
-        "data": df["data_gb"].notna().any() or df["data_unlimited"].fillna(False).any(),
+        "data": _has_data(df).any(),
         # QoS는 결측도 정보다(무제한이면 완전 무제한, 정량제면 초과 과금).
         # 값이 하나도 없어도 후보들이 0/1로 갈리므로 항상 유효한 축이다.
         "qos": True,
@@ -514,6 +534,19 @@ def demo():
     print(
         f"테더링 상태 분포: {ranked1['tethering_support'].value_counts().to_dict()}"
     )
+
+    # 데이터를 아예 안 주는 음성전용 요금제는 어떤 프로필에서도 안 나와야 한다
+    # (싸다는 이유만으로 상위에 올라왔었다).
+    for prof in (profile_budget, {"user_age": 70, "preferred_carrier_type": "MNO"}, {}):
+        cand = filter_eligible(plans, prof)
+        assert _has_data(cand).all(), (
+            f"데이터 없는 음성전용 요금제가 후보에 남음: "
+            f"{cand.loc[~_has_data(cand), 'plan_name'].head(3).tolist()}"
+        )
+
+    # 일 단위 제공(매일 5GB 등)은 data_gb가 비어 있을 뿐 데이터가 있는 요금제다.
+    daily = plans[plans["daily_data_gb"].notna() & plans["data_gb"].isna()]
+    assert _has_data(daily).all(), "일 단위 제공 요금제가 '데이터 없음'으로 걸러짐"
 
     # 상위 목록이 복제본이면 안 된다. 점수순으로만 뽑으면 실제로 전부
     # "12~20GB 특가 프로모션"만 나왔고, 후보에 있던 안정형/대용량은 묻혔다.

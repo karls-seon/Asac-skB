@@ -467,9 +467,11 @@ def write_plans(rows, path):
         # 없어서 값이 있으면 quota, 없으면 undisclosed까지만 말할 수 있다.
         # 없는 걸 unsupported라고 단정하면 안 된다 - 실제로 미공시일 뿐이다.
         if not row.get("tethering_support"):
-            row["tethering_support"] = (
-                "quota" if row.get("tethering_gb", "") != "" else "undisclosed"
-            )
+            # `!= ""` 로만 보면 파서가 못 찾아서 넣은 None이 "값이 있다"로
+            # 통과해 quota로 찍힌다(MNO 151건이 이 상태였다). 빈 문자열과
+            # None을 모두 "값 없음"으로 봐야 한다.
+            has_quota = row.get("tethering_gb") not in ("", None)
+            row["tethering_support"] = "quota" if has_quota else "undisclosed"
         # 택1로 펼치지 않은 행도 base_plan_id를 비워두지 않는다. 그래야
         # "실제 요금제 수"를 언제나 nunique(base_plan_id) 하나로 셀 수 있다.
         if not row.get("base_plan_id"):
