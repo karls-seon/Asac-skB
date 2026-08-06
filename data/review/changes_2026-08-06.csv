@@ -1,0 +1,156 @@
+﻿change_type,plan_id,base_plan_id,host_mno,plan_category,plan_name,field,old_value,new_value,source_url
+신규,37405,37405,LGU+,moyo,[모요only] 두해5G 통화기본125GB+,,,,https://www.moyoplan.com/plans/37405
+신규,37406,37406,LGU+,moyo,[모요only] 두해5G 통화기본150GB+,,,,https://www.moyoplan.com/plans/37406
+신규,37404,37404,LGU+,moyo,[모요only] 두해5G 통화기본95GB+,,,,https://www.moyoplan.com/plans/37404
+신규,37415,37415,SKT,moyo,[S] 컬쳐랜드 11GB+,,,,https://www.moyoplan.com/plans/37415
+신규,37416,37416,SKT,moyo,[S] 컬쳐랜드 100GB+,,,,https://www.moyoplan.com/plans/37416
+신규,37414,37414,SKT,moyo,[S] 컬쳐랜드 100분15GB+,,,,https://www.moyoplan.com/plans/37414
+신규,37410,37410,SKT,moyo,[S] 100분15GB+,,,,https://www.moyoplan.com/plans/37410
+신규,37409,37409,SKT,moyo,[S] 데이터 7GB+,,,,https://www.moyoplan.com/plans/37409
+신규,37408,37408,KT,moyo,[K]5G 네이버페이 200GB+,,,,https://www.moyoplan.com/plans/37408
+신규,37412,37412,SKT,moyo,[S] 데이터 10GB+,,,,https://www.moyoplan.com/plans/37412
+신규,37411,37411,SKT,moyo,[S] 컬쳐랜드 7GB+,,,,https://www.moyoplan.com/plans/37411
+신규,37413,37413,SKT,moyo,[S] 컬쳐랜드 10GB+,,,,https://www.moyoplan.com/plans/37413
+단종,36218,36218,LGU+,moyo,이야기 무제한71GB+3Mbps,,,,https://www.moyoplan.com/plans/36218
+단종,30013,30013,LGU+,moyo,[올리브영 12만원] 5G 3GB/통화기본,,,,https://www.moyoplan.com/plans/30013
+단종,28171,28171,LGU+,moyo,[윌 야쿠르트 240개] 플러스 알파 4.5GB+,,,,https://www.moyoplan.com/plans/28171
+단종,37277,37277,SKT,moyo,[S] 100분15GB+,,,,https://www.moyoplan.com/plans/37277
+단종,37266,37266,SKT,moyo,[S] 데이터 7GB+,,,,https://www.moyoplan.com/plans/37266
+단종,37280,37280,SKT,moyo,[S] 컬쳐랜드 100GB+,,,,https://www.moyoplan.com/plans/37280
+단종,37279,37279,SKT,moyo,[S] 컬쳐랜드 11GB+,,,,https://www.moyoplan.com/plans/37279
+단종,37274,37274,SKT,moyo,[S] 데이터 10GB+,,,,https://www.moyoplan.com/plans/37274
+단종,37278,37278,SKT,moyo,[S] 컬쳐랜드 100분15GB+,,,,https://www.moyoplan.com/plans/37278
+단종,37268,37268,SKT,moyo,[S] 컬쳐랜드 7GB+,,,,https://www.moyoplan.com/plans/37268
+단종,37273,37273,SKT,moyo,[S] 컬쳐랜드 10GB+,,,,https://www.moyoplan.com/plans/37273
+변경,26257,26257,LGU+,moyo,[평생할인] 7GB+/통화기본,benefit_count,3,4,https://www.moyoplan.com/plans/26257
+변경,36163,36163,KT,moyo,[모요only] 쉐이크only LTE 100GB+밀리의서재,discounted_fee,15900,9900,https://www.moyoplan.com/plans/36163
+변경,35498,35498,LGU+,moyo,[평생할인] 5G 15GB+/300분,benefit_count,1,2,https://www.moyoplan.com/plans/35498
+변경,6836,6836,LGU+,moyo,The 착한 데이터 유심 11GB,discount_period_months,6,7,https://www.moyoplan.com/plans/6836
+변경,6836,6836,LGU+,moyo,The 착한 데이터 유심 11GB,benefit_count,3,4,https://www.moyoplan.com/plans/6836
+변경,6801,6801,LGU+,moyo,슬림 유심 1GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/6801
+변경,6790,6790,LGU+,moyo,보편 안심 유심 15GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/6790
+변경,6790,6790,LGU+,moyo,보편 안심 유심 15GB 100분,benefit_count,3,4,https://www.moyoplan.com/plans/6790
+변경,36647,36647,LGU+,moyo,DATA 걱정없는 유심 100GB,discount_period_months,6,7,https://www.moyoplan.com/plans/36647
+변경,36647,36647,LGU+,moyo,DATA 걱정없는 유심 100GB,benefit_count,3,4,https://www.moyoplan.com/plans/36647
+변경,6830,6830,LGU+,moyo,DATA 걱정없는 유심 7GB,discount_period_months,6,7,https://www.moyoplan.com/plans/6830
+변경,6804,6804,LGU+,moyo,슬림 유심 500MB 50분,discount_period_months,6,7,https://www.moyoplan.com/plans/6804
+변경,26259,26259,LGU+,moyo,[평생할인] 15GB+/통화기본,benefit_count,3,4,https://www.moyoplan.com/plans/26259
+변경,6803,6803,LGU+,moyo,슬림 유심 2GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/6803
+변경,18885,18885,LGU+,moyo,DATA 걱정없는 유심 15GB,discount_period_months,6,7,https://www.moyoplan.com/plans/18885
+변경,11964,11964,LGU+,moyo,The 착한 데이터 유심 9GB 3000분,discount_period_months,6,7,https://www.moyoplan.com/plans/11964
+변경,11964,11964,LGU+,moyo,The 착한 데이터 유심 9GB 3000분,benefit_count,4,5,https://www.moyoplan.com/plans/11964
+변경,37109,37109,LGU+,moyo,[Npay 12만 기본제공] 17GB+/통화기본,benefit_count,2,3,https://www.moyoplan.com/plans/37109
+변경,28102,28102,KT,moyo,[모요only] [K] 핀다이렉트Z Max (100GB) _PIN,discounted_fee,11800,15800,https://www.moyoplan.com/plans/28102
+변경,28102,28102,KT,moyo,[모요only] [K] 핀다이렉트Z Max (100GB) _PIN,discount_period_months,6,7,https://www.moyoplan.com/plans/28102
+변경,22864,22864,LGU+,moyo,[모요only] 마블링 프라임 100GB+5Mbps,monthly_fee,39990,46190,https://www.moyoplan.com/plans/22864
+변경,22864,22864,LGU+,moyo,[모요only] 마블링 프라임 100GB+5Mbps,discounted_fee,15800,11000,https://www.moyoplan.com/plans/22864
+변경,22864,22864,LGU+,moyo,[모요only] 마블링 프라임 100GB+5Mbps,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/22864
+변경,22864,22864,LGU+,moyo,[모요only] 마블링 프라임 100GB+5Mbps,tethering_gb,11.0,,https://www.moyoplan.com/plans/22864
+변경,22864,22864,LGU+,moyo,[모요only] 마블링 프라임 100GB+5Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/22864
+변경,23093,23093,LGU+,moyo,보편 안심 유심 15GB 300분,discount_period_months,6,7,https://www.moyoplan.com/plans/23093
+변경,23093,23093,LGU+,moyo,보편 안심 유심 15GB 300분,benefit_count,3,4,https://www.moyoplan.com/plans/23093
+변경,36256,36256,LGU+,moyo,5G 음성기본 150GB+5Mbps_24개월,discounted_fee,22800,22650,https://www.moyoplan.com/plans/36256
+변경,34378,34378,LGU+,moyo,[모요only] [CH]100GB+5Mbps,discounted_fee,13900,15700,https://www.moyoplan.com/plans/34378
+변경,34378,34378,LGU+,moyo,[모요only] [CH]100GB+5Mbps,discount_period_months,6,7,https://www.moyoplan.com/plans/34378
+변경,23092,23092,LGU+,moyo,보편 안심 유심 15GB 180분,discount_period_months,6,7,https://www.moyoplan.com/plans/23092
+변경,23092,23092,LGU+,moyo,보편 안심 유심 15GB 180분,benefit_count,3,4,https://www.moyoplan.com/plans/23092
+변경,28127,28127,LGU+,moyo,[모요only] 마블링 프라임 11GB+매일2GB+3Mbps,monthly_fee,38900,36890,https://www.moyoplan.com/plans/28127
+변경,28127,28127,LGU+,moyo,[모요only] 마블링 프라임 11GB+매일2GB+3Mbps,discounted_fee,8970,6900,https://www.moyoplan.com/plans/28127
+변경,34377,34377,LGU+,moyo,[모요only] 알찬 음성기본 11GB+일 2GB+3Mbps,discounted_fee,7400,9500,https://www.moyoplan.com/plans/34377
+변경,34377,34377,LGU+,moyo,[모요only] 알찬 음성기본 11GB+일 2GB+3Mbps,discount_period_months,6,7,https://www.moyoplan.com/plans/34377
+변경,32404,32404,LGU+,moyo,쿠폰팩 유심 15GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/32404
+변경,18705,18705,LGU+,moyo,5G 유심 중간요금제 95GB,discount_period_months,6,7,https://www.moyoplan.com/plans/18705
+변경,18705,18705,LGU+,moyo,5G 유심 중간요금제 95GB,benefit_count,3,4,https://www.moyoplan.com/plans/18705
+변경,10394,10394,LGU+,moyo,5G 스탠다드 유심 150GB,discount_period_months,6,7,https://www.moyoplan.com/plans/10394
+변경,10394,10394,LGU+,moyo,5G 스탠다드 유심 150GB,benefit_count,3,4,https://www.moyoplan.com/plans/10394
+변경,32403,32403,LGU+,moyo,쿠폰팩 유심 11GB,discount_period_months,6,7,https://www.moyoplan.com/plans/32403
+변경,6789,6789,LGU+,moyo,보편 안심 유심 10GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/6789
+변경,32401,32401,LGU+,moyo,쿠폰팩 유심 10GB,discount_period_months,6,7,https://www.moyoplan.com/plans/32401
+변경,12438,12438,LGU+,moyo,5G 유심 6GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/12438
+변경,14987,14987,LGU+,moyo,CU 유심 1.5GB 150분,discount_period_months,6,7,https://www.moyoplan.com/plans/14987
+변경,32400,32400,LGU+,moyo,쿠폰팩 유심 7GB,discount_period_months,6,7,https://www.moyoplan.com/plans/32400
+변경,15001,15001,LGU+,moyo,프레딧 유심 1.5GB 150분,discount_period_months,6,7,https://www.moyoplan.com/plans/15001
+변경,32402,32402,LGU+,moyo,쿠폰팩 유심 15GB,discount_period_months,6,7,https://www.moyoplan.com/plans/32402
+변경,26836,26836,KT,moyo,가성비플러스(15GB/350분),discount_period_months,9,8,https://www.moyoplan.com/plans/26836
+변경,34319,34319,KT,moyo,5G 가성비플러스(15GB/350분),discount_period_months,9,8,https://www.moyoplan.com/plans/34319
+변경,11197,11197,LGU+,moyo,보편 안심 유심 1GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/11197
+변경,10390,10390,LGU+,moyo,5G 유심 통화 맘편히 3GB,discount_period_months,6,7,https://www.moyoplan.com/plans/10390
+변경,37112,37112,LGU+,moyo,[Npay 12만 기본제공] 7GB+/통화기본,benefit_count,2,3,https://www.moyoplan.com/plans/37112
+변경,18704,18704,LGU+,moyo,5G 유심 중간요금제 80GB,discount_period_months,6,7,https://www.moyoplan.com/plans/18704
+변경,18704,18704,LGU+,moyo,5G 유심 중간요금제 80GB,benefit_count,3,4,https://www.moyoplan.com/plans/18704
+변경,18702,18702,LGU+,moyo,5G 유심 중간요금제 31GB,discount_period_months,6,7,https://www.moyoplan.com/plans/18702
+변경,18702,18702,LGU+,moyo,5G 유심 중간요금제 31GB,benefit_count,3,4,https://www.moyoplan.com/plans/18702
+변경,10388,10388,LGU+,moyo,5G 스페셜 유심 180GB,discount_period_months,6,7,https://www.moyoplan.com/plans/10388
+변경,10388,10388,LGU+,moyo,5G 스페셜 유심 180GB,benefit_count,3,4,https://www.moyoplan.com/plans/10388
+변경,23094,23094,LGU+,moyo,5G 라이트 유심 14GB,discount_period_months,6,7,https://www.moyoplan.com/plans/23094
+변경,23094,23094,LGU+,moyo,5G 라이트 유심 14GB,benefit_count,3,4,https://www.moyoplan.com/plans/23094
+변경,10392,10392,LGU+,moyo,5G 유심 통화 맘편히 9GB,discount_period_months,6,7,https://www.moyoplan.com/plans/10392
+변경,6835,6835,LGU+,moyo,The 착한 데이터 유심 1.3GB,discount_period_months,6,7,https://www.moyoplan.com/plans/6835
+변경,33129,33129,KT,moyo,5G 가성비플러스(30GB/350분),discounted_fee,3900,4900,https://www.moyoplan.com/plans/33129
+변경,33129,33129,KT,moyo,5G 가성비플러스(30GB/350분),benefit_count,4,2,https://www.moyoplan.com/plans/33129
+변경,36597,36597,LGU+,moyo,[모요only] 마블링 프라임 15GB+1Mbps,monthly_fee,25245,25840,https://www.moyoplan.com/plans/36597
+변경,36597,36597,LGU+,moyo,[모요only] 마블링 프라임 15GB+1Mbps,discounted_fee,20890,9600,https://www.moyoplan.com/plans/36597
+변경,11420,11420,LGU+,moyo,보편 유심 3.5GB 150분,discount_period_months,6,7,https://www.moyoplan.com/plans/11420
+변경,23771,23771,LGU+,moyo,티플 가성비(300분/6GB)_평생요금,monthly_fee,1490,1900,https://www.moyoplan.com/plans/23771
+변경,23771,23771,LGU+,moyo,티플 가성비(300분/6GB)_평생요금,discounted_fee,1490,1900,https://www.moyoplan.com/plans/23771
+변경,10385,10385,LGU+,moyo,보편 유심 5GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/10385
+변경,10365,10365,LGU+,moyo,슬림 안심 유심 1GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/10365
+변경,11200,11200,LGU+,moyo,DATA 걱정없는 유심 1GB,monthly_fee,7500,11550,https://www.moyoplan.com/plans/11200
+변경,11200,11200,LGU+,moyo,DATA 걱정없는 유심 1GB,discount_period_months,6,7,https://www.moyoplan.com/plans/11200
+변경,30830,30830,LGU+,moyo,[모요only] 마블링 프라임 7GB+1Mbps,monthly_fee,28480,24190,https://www.moyoplan.com/plans/30830
+변경,30830,30830,LGU+,moyo,[모요only] 마블링 프라임 7GB+1Mbps,discounted_fee,5610,3700,https://www.moyoplan.com/plans/30830
+변경,34304,34304,KT,moyo,가성비플러스(30GB/350분),discounted_fee,3900,4900,https://www.moyoplan.com/plans/34304
+변경,34304,34304,KT,moyo,가성비플러스(30GB/350분),benefit_count,4,2,https://www.moyoplan.com/plans/34304
+변경,11198,11198,LGU+,moyo,슬림 안심 유심 2.5GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/11198
+변경,6793,6793,LGU+,moyo,보편 안심 유심 5GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/6793
+변경,11201,11201,LGU+,moyo,보편 안심 유심 5GB 100분,discount_period_months,6,7,https://www.moyoplan.com/plans/11201
+변경,27355,27355,LGU+,moyo,[L]5G 데이터125GB+5Mbps,discounted_fee,22800,22400,https://www.moyoplan.com/plans/27355
+변경,37221,37221,LGU+,moyo,A 스페셜 100GB+,benefit_count,1,2,https://www.moyoplan.com/plans/37221
+변경,36986,36986,LGU+,moyo,[L]5G 데이터150GB+,discounted_fee,22900,22500,https://www.moyoplan.com/plans/36986
+변경,11419,11419,LGU+,moyo,보편 안심 유심 3GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/11419
+변경,37220,37220,LGU+,moyo,A 스페셜 11GB+,benefit_count,1,2,https://www.moyoplan.com/plans/37220
+변경,10391,10391,LGU+,moyo,5G 유심 통화 맘편히 6GB,discount_period_months,6,7,https://www.moyoplan.com/plans/10391
+변경,34718,34718,LGU+,moyo,[L]5G 데이터95GB+3Mbps,discounted_fee,22600,22300,https://www.moyoplan.com/plans/34718
+변경,6828,6828,LGU+,moyo,DATA 걱정없는 유심 4.5GB,discount_period_months,6,7,https://www.moyoplan.com/plans/6828
+변경,19643,19643,LGU+,moyo,[L]무한11GB+,monthly_fee,24500,25500,https://www.moyoplan.com/plans/19643
+변경,19643,19643,LGU+,moyo,[L]무한11GB+,discounted_fee,24500,25500,https://www.moyoplan.com/plans/19643
+변경,11203,11203,LGU+,moyo,DATA 걱정없는 유심 5GB,discount_period_months,6,7,https://www.moyoplan.com/plans/11203
+변경,37183,37183,KT,moyo,A 스탠다드 10GB/200분,benefit_count,1,2,https://www.moyoplan.com/plans/37183
+변경,37238,37238,SKT,moyo,A 스마트 20GB/100분,benefit_count,1,2,https://www.moyoplan.com/plans/37238
+변경,37202,37202,LGU+,moyo,A 스페셜 4.5GB+,benefit_count,1,2,https://www.moyoplan.com/plans/37202
+변경,37176,37176,KT,moyo,A 스탠다드 20GB/300분,benefit_count,1,2,https://www.moyoplan.com/plans/37176
+변경,37231,37231,SKT,moyo,A 스마트 10GB,benefit_count,1,2,https://www.moyoplan.com/plans/37231
+변경,11199,11199,LGU+,moyo,슬림 안심 유심 2.5GB 250분,discount_period_months,6,7,https://www.moyoplan.com/plans/11199
+변경,37212,37212,LGU+,moyo,A 갓성비 20GB/100분 (기본 10GB+추가 10GB 제공),benefit_count,1,2,https://www.moyoplan.com/plans/37212
+변경,11202,11202,LGU+,moyo,보편 안심 유심 6GB 200분,discount_period_months,6,7,https://www.moyoplan.com/plans/11202
+변경,37178,37178,KT,moyo,A 올라잇 11GB+ 밀리의서재(+추가 네이버페이 1만x7개월),benefit_count,1,2,https://www.moyoplan.com/plans/37178
+변경,37242,37242,SKT,moyo,A 넥스트 71GB+(네이버페이 1만x7개월),benefit_count,2,3,https://www.moyoplan.com/plans/37242
+변경,37181,37181,KT,moyo,A 올라잇 100GB+ 밀리의서재(+추가 네이버페이 1만x7개월),benefit_count,1,2,https://www.moyoplan.com/plans/37181
+변경,37243,37243,SKT,moyo,A 넥스트 100GB+(네이버페이 1만x7개월),benefit_count,2,3,https://www.moyoplan.com/plans/37243
+변경,37205,37205,LGU+,moyo,A 갓성비 10GB/100분 6,benefit_count,1,2,https://www.moyoplan.com/plans/37205
+변경,37179,37179,KT,moyo,A 올라잇 11GB+ 네이버페이(+추가 네이버페이 1만x7개월),benefit_count,1,2,https://www.moyoplan.com/plans/37179
+변경,37240,37240,SKT,moyo,A 넥스트 15GB+/100분(네이버페이 1만x7개월),benefit_count,2,3,https://www.moyoplan.com/plans/37240
+변경,37241,37241,SKT,moyo,A 넥스트 15GB+/300분(네이버페이 1만x7개월),benefit_count,2,3,https://www.moyoplan.com/plans/37241
+변경,37244,37244,SKT,moyo,A 넥스트 7GB+(네이버페이 1만x7개월),benefit_count,2,3,https://www.moyoplan.com/plans/37244
+변경,37195,37195,LGU+,moyo,A 갓성비 10GB/100분 9,benefit_count,1,2,https://www.moyoplan.com/plans/37195
+변경,34336,34336,KT,moyo,더든든한500분20G,monthly_fee,24200,4400,https://www.moyoplan.com/plans/34336
+변경,34336,34336,KT,moyo,더든든한500분20G,discounted_fee,10,4400,https://www.moyoplan.com/plans/34336
+변경,34336,34336,KT,moyo,더든든한500분20G,discount_type,모요 프로모션 할인,,https://www.moyoplan.com/plans/34336
+변경,34336,34336,KT,moyo,더든든한500분20G,discount_period_months,7,,https://www.moyoplan.com/plans/34336
+변경,33146,33146,KT,moyo,더든든한200분20G,discounted_fee,4400,10,https://www.moyoplan.com/plans/33146
+변경,33146,33146,KT,moyo,더든든한200분20G,discount_period_months,12,7,https://www.moyoplan.com/plans/33146
+변경,36332,36332,KT,moyo,(5G)더든든한200분20G,monthly_fee,6600,5500,https://www.moyoplan.com/plans/36332
+변경,36332,36332,KT,moyo,(5G)더든든한200분20G,discounted_fee,6600,5500,https://www.moyoplan.com/plans/36332
+변경,36331,36331,KT,moyo,(5G)더든든한200분15G,monthly_fee,5500,3300,https://www.moyoplan.com/plans/36331
+변경,36331,36331,KT,moyo,(5G)더든든한200분15G,discounted_fee,5500,3300,https://www.moyoplan.com/plans/36331
+변경,23271,23271,KT,moyo,5G 든든한200분10G,monthly_fee,3300,2750,https://www.moyoplan.com/plans/23271
+변경,23271,23271,KT,moyo,5G 든든한200분10G,discounted_fee,3300,2750,https://www.moyoplan.com/plans/23271
+변경,15945,15945,KT,moyo,더든든한200분15G,discount_period_months,7,10,https://www.moyoplan.com/plans/15945
+변경,19692,19692,KT,moyo,5G 든든한200분5G,monthly_fee,2200,1650,https://www.moyoplan.com/plans/19692
+변경,19692,19692,KT,moyo,5G 든든한200분5G,discounted_fee,2200,1650,https://www.moyoplan.com/plans/19692
+변경,34677,34677,KT,moyo,CGV 1+1 100G+,discounted_fee,19800,14300,https://www.moyoplan.com/plans/34677
+변경,31431,31431,KT,moyo,다이소 100G+,discounted_fee,19800,14300,https://www.moyoplan.com/plans/31431
+변경,35916,35916,KT,moyo,쿠팡캐시 100G+,discounted_fee,19800,14300,https://www.moyoplan.com/plans/35916
+변경,29579,29579,KT,moyo,올리브영 7G+1M,discounted_fee,9900,5500,https://www.moyoplan.com/plans/29579
+변경,35914,35914,KT,moyo,쿠팡캐시 7G+1M,discounted_fee,9900,5500,https://www.moyoplan.com/plans/35914
+변경,31425,31425,KT,moyo,다이소 7G+1M,discounted_fee,9900,5500,https://www.moyoplan.com/plans/31425

@@ -443,7 +443,17 @@ def parse_card_only(a_tag) -> dict | None:
     # 한 줄로 합친 뒤 정규식으로 구간을 잘라내는 편이 안정적이다.
     card_text = re.sub(r"\s+", " ", a_tag.get_text(" ", strip=True))
 
-    name_m = re.match(r"^(?:\d\.\d\s+)?(.+?)\s+월\s+(?:무제한|[\d.]+\s*(?:GB|MB))", card_text)
+    # 데이터 표기가 "월 100GB"(월간 총량) 말고도 "매일 5GB"(일 단위, 월 총량 없이
+    # 이것만 있는 카드), 라벨 없는 "무제한", "데이터 제공안함"(0GB 통화전용) 세
+    # 가지가 더 있다 - 원래는 "월 …"만 인식해서 이 3가지 카드가 통째로 안 읽혔다
+    # (29062 "데일리 너겟59" 등 95/2528건, 2026-08-06 발견).
+    # 바로 뒤 "통화"가 온다는 조건(lookahead)으로 "무제한일 5GB"처럼 이름 안에
+    # "무제한"이 들어간 경우와 헷갈리지 않게 막는다.
+    name_m = re.match(
+        r"^(?:\d\.\d\s+)?(.+?)\s+(?:(?:월|매일)\s+(?:무제한|[\d.]+\s*(?:GB|MB))"
+        r"|데이터\s*제공안함|무제한(?=\s+통화))",
+        card_text,
+    )
     if not name_m:
         return None
     plan_name = name_m.group(1).strip()
@@ -454,9 +464,16 @@ def parse_card_only(a_tag) -> dict | None:
     # 실제로 그 요금제는 21,560원인데 5,000원으로 기록돼 있었다.
     spec_text = card_text[name_m.end(1):]
 
-    data_m = re.search(r"월\s+(무제한|[\d.]+\s*(?:GB|MB).*?)\s+통화", card_text)
+    data_m = re.search(
+        r"((?:월|매일)\s+(?:무제한|[\d.]+\s*(?:GB|MB)).*?|데이터\s*제공안함|무제한)\s+통화",
+        card_text,
+    )
     data_text = data_m.group(1) if data_m else ""
     data_unlimited = "무제한" in data_text
+    # "매일 5GB"만 있고 "월 …" 총량이 안 붙은 카드는 월 총량이 존재하지 않는
+    # 거라 data_gb를 비워야 한다. to_gb()는 텍스트 안 첫 "N GB"를 그대로 집어서
+    # 여기서 걸러주지 않으면 일일 재충전량(5)을 월 총량인 것처럼 채워버린다.
+    is_daily_only = data_text.startswith("매일")
     qos = re.search(r"([\d.]+)\s*(Kbps|Mbps)", data_text, re.I)
     daily = re.search(r"매일\s*([\d.]+)\s*GB", data_text)
 
@@ -527,7 +544,7 @@ def parse_card_only(a_tag) -> dict | None:
         "is_online_only": True,  # 모요는 온라인 가입 채널
         "age_condition": "",
         "network_gen": gen_m.group(1) if gen_m else "",
-        "data_gb": None if data_unlimited else to_gb(data_text),
+        "data_gb": None if (data_unlimited or is_daily_only) else to_gb(data_text),
         "data_unlimited": data_unlimited,
         "data_throttle_speed": f"{qos.group(1)}{qos.group(2)}" if qos else "",
         "daily_data_gb": float(daily.group(1)) if daily else "",
