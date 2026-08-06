@@ -44,6 +44,8 @@ current_carrier_type  "MNO"(통신3사) 또는 "MVNO"(알뜰폰). 지금 쓰는 
 current_carrier       "KT" / "SKT" / "LGU+". 지금 쓰는 통신사.
 target_carrier_type   "MNO" 또는 "MVNO". 옮겨 가고 싶은 쪽을 말했을 때만.
 ott_preference        문자열 배열. 예: ["넷플릭스"].
+price_sensitive       불리언. "싼 거 / 저렴한 / 최대한 아끼고 싶다"처럼
+                      가격을 우선한다는 뜻을 밝혔을 때만 true.
 """
 
 # 슬롯이 이만큼도 안 채워지면 추천이 아니라 카탈로그 구경이 된다.
@@ -83,9 +85,10 @@ PROMPT = f"""너는 한국 휴대폰 요금제 상담의 슬롯 추출기다.
 - "50대", "30대", "스무살", "군인"처럼 나이를 짐작할 수 있는 표현이 나오면
   user_age에 대표값을 넣어라(50대->55, 30대->35, 군인->21). 연령 전용
   요금제가 더 쌀 수 있어서 이 값이 실제로 결과를 바꾼다.
-- "비싸다 / 아끼고 싶다 / 저렴하게" 같은 비용 불만은 금액이 아니므로
-  budget_krw에 넣지 마라. 대신 "missing"의 맨 앞에 budget_krw를 넣어
-  얼마까지 생각하는지 되묻게 하라. 금액을 지어내면 안 된다.
+- "비싸다 / 아끼고 싶다 / 저렴하게 / 싼 거" 같은 비용 불만은 금액이 아니므로
+  budget_krw에 넣지 마라. 금액을 지어내면 안 된다. 대신 price_sensitive를
+  true로 하고, "missing"의 맨 앞에 budget_krw를 넣어 얼마까지 생각하는지
+  되묻게 하라.
 - 추가로 "missing" 키에, 추천 품질을 위해 더 물어보면 좋을 슬롯 이름을
   중요한 순서로 최대 2개까지 배열로 넣어라.
 - JSON 외에는 아무것도 출력하지 마라."""
@@ -125,6 +128,7 @@ _ALLOWED = {
     "data_unlimited_required", "voice_unlimited_required",
     "preferred_network", "user_age", "current_carrier_type",
     "current_carrier", "target_carrier_type", "ott_preference",
+    "price_sensitive",
 }
 
 

@@ -348,7 +348,27 @@ def _qos_mbps(speed: pd.Series) -> pd.Series:
     return num.where(~is_kbps, num / 1000)
 
 
-def _qos_score(df: pd.DataFrame) -> pd.Series:
+def _exhaust_risk(df: pd.DataFrame, profile: dict) -> pd.Series:
+    """기본 제공량을 다 쓸 가능성. 0=거의 없음, 1=거의 확실.
+
+    소진 후 동작(감속이냐 초과 과금이냐)이 얼마나 중요한지는 **다 쓸 것
+    같은지**에 달렸다. 월 3GB 쓰는 사람에게 15GB 요금제의 초과 과금 조항은
+    사실상 없는 조건인데, 이걸 무시하고 일괄로 0점을 주면 0원짜리가 19,000원
+    짜리한테 진다(실측). 무제한은 소진 자체가 없으니 위험 0이다.
+    """
+    usage = profile.get("data_usage_gb")
+    if not usage:
+        # 사용량을 모르면 판단 근거가 없다. 중간으로 두고 다른 축에 맡긴다.
+        return pd.Series(0.5, index=df.index).mask(
+            df["data_unlimited"].fillna(False), 0.0)
+    # filter_eligible이 이미 월 환산해 둔 컬럼을 쓴다(없으면 그때 계산).
+    gb = df["monthly_data_gb"] if "monthly_data_gb" in df else _monthly_data_gb(df)
+    risk = (usage / gb.replace(0, pd.NA)).clip(upper=1.0)
+    risk[df["data_unlimited"].fillna(False)] = 0.0
+    return risk.fillna(0.5).astype(float)
+
+
+def _qos_score(df: pd.DataFrame, profile: dict) -> pd.Series:
     """소진 후 동작 점수. 결측의 의미가 무제한 여부에 따라 정반대다.
 
     | data_unlimited | QoS 표기 | 실제 의미                  | 점수 |
@@ -369,7 +389,20 @@ def _qos_score(df: pd.DataFrame) -> pd.Series:
     score = _minmax(speed, higher_is_better=True)
     score[speed.isna() & unlimited] = 1.0
     score[speed.isna() & ~unlimited] = 0.0
-    return score
+
+    # 소진 후 동작은 **다 쓸 것 같을 때만** 중요하다. 여유가 크면 이 축의
+    # 판정을 중립(0.5) 쪽으로 되돌려 다른 축이 결정하게 한다 - 안 그러면
+    # "초과 과금이지만 내 사용량의 5배를 주는 0원짜리"가 "완전 무제한
+    # 19,000원짜리"에게 진다.
+    #
+    # 감쇠는 **정량제에만** 건다. 무제한은 소진 자체가 없어서 위험이 0이라
+    # 전부 중립이 돼 버리는데, 완전 무제한과 감속 무제한의 차이는 사용량과
+    # 무관하게 실재하므로 그 판정은 그대로 살려야 한다.
+    metered = ~unlimited
+    risk = _exhaust_risk(df, profile)
+    out = score.copy()
+    out[metered] = 0.5 + (score[metered] - 0.5) * risk[metered]
+    return out
 
 
 def _tethering_score(df: pd.DataFrame) -> pd.Series:
@@ -442,6 +475,12 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     if profile.get("ott_preference"):
         w = {**w, "ott": max(w["ott"], 0.25)}
 
+    # "싼 거 없나요"는 예산은 아니지만 분명한 신호다. 금액을 안 밝혔다고
+    # 가격을 덜 보면 안 된다 - 예산이 없으면 가격 정규화가 후보 전체
+    # min-max라 19,000원도 꽤 좋은 점수를 받는다(실측: 0원짜리가 5위였다).
+    if profile.get("price_sensitive"):
+        w = {**w, "price": max(w["price"], 0.6)}
+
     # 가격은 예산이 있으면 **예산 대비**로 잰다. 후보군 min-max로 재면
     # 기준선이 후보 구성에 따라 흔들린다 - 10원짜리 하나가 최저값을 잡으면
     # 나머지 2~3만원대가 전부 0점 근처로 뭉개지고, 후보가 2~3개만 남으면
@@ -456,7 +495,7 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
         df["_price_score"] = _minmax(df["monthly_cost"], higher_is_better=False)
 
     qos_speed = _qos_mbps(df["data_throttle_speed"])
-    df["_qos_score"] = _qos_score(df)
+    df["_qos_score"] = _qos_score(df, profile)
 
     # 데이터는 "많을수록 좋다"가 아니라 "필요한 만큼 + 여유"다. 사용량을
     # 알면 그 대비로 재서, 필요량의 1.5배부터는 만점으로 포화시킨다.
@@ -806,9 +845,19 @@ def demo():
         "data_unlimited": [True, False],
         "data_throttle_speed": [None, None],
     })
-    qs = _qos_score(probe)
+    # 소진이 확실한 상황(제공량 = 사용량)에서만 위험이 100%로 잡힌다.
+    probe["monthly_data_gb"] = [None, 10.0]
+    qs = _qos_score(probe, {"data_usage_gb": 10})
     assert qs.iloc[0] == 1.0, "완전 무제한(감속 없음)이 만점이 아님"
     assert qs.iloc[1] == 0.0, "정량제인데 감속 표기 없음(=초과 과금)이 0점이 아님"
+
+    # 여유가 크면 초과 과금 조항은 사실상 없는 조건이라 벌점이 약해져야 한다.
+    # (실측: 월 3GB 쓰는 사람에게 15GB/0원짜리가 19,000원짜리한테 졌다.)
+    roomy = probe.copy()
+    roomy["monthly_data_gb"] = [None, 60.0]
+    assert _qos_score(roomy, {"data_usage_gb": 10}).iloc[1] > qs.iloc[1], (
+        "여유가 6배인데도 초과 과금 벌점이 그대로다"
+    )
 
     # 설명: 조건과 무엇이 다른지를 말할 수 있어야 한다(점수 숫자는 설명이 아니다).
     tight = {"data_usage_gb": 8, "budget_krw": 12000, "preferred_network": "5G"}
