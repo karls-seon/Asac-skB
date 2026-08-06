@@ -49,6 +49,11 @@ def _say_shortfall(f: dict) -> str:
         return "데이터를 다 쓰면 속도 제한이 아니라 초과 요금이 붙음"
     if code == "no_tethering":
         return "테더링(핫스팟) 불가"
+    if code == "data_oversized":
+        return (f"데이터 {_fmt(f['actual_gb'])}GB로 쓰시는 양"
+                f"({_fmt(f['requested_gb'])}GB)보다 훨씬 큼 - 안 쓰는 만큼 돈을 더 냄")
+    if code == "ott_missing":
+        return f"{', '.join(f['wanted'])} 미포함"
     return code
 
 
@@ -114,7 +119,16 @@ def report(result: dict, profiling: dict | None = None) -> str:
         head = (f"조건을 모두 만족하는 요금제가 {total_exact}개 있습니다. "
                 f"그중 성격이 다른 것들로 추려서 보여드릴게요.")
 
-    lines = [head, ""]
+    lines = [head]
+    # 원한 OTT가 후보에 아예 없으면 목록보다 먼저 말한다. 아래 5개에 다
+    # "미포함"이 붙는 이유이기도 하다.
+    for u in result.get("ott_unavailable") or []:
+        msg = f"다만 조건 안에는 {u['ott']} 포함 요금제가 없습니다"
+        if u["min_cost_krw"]:
+            msg += f" (카탈로그 전체에 {u['plans_in_catalog']}개, 월 {_fmt(u['min_cost_krw'])}원부터)"
+        lines.append(msg + ".")
+    lines.append("")
+
     for i, (_, row) in enumerate(result["candidates"].iterrows(), 1):
         lines.append(f"{i}. {row['plan_name']} | {_price_line(row)}")
         good = [_say_strength(f) for f in row["strength"]]
@@ -165,6 +179,24 @@ def demo():
     bad = scoring_agent.match(cases[1][1])
     assert bad["candidate_count"] == 0, "충돌 프로필인데 후보가 남음"
     assert "없습니다" in report(bad), "후보가 없는데 그렇게 말하지 않음"
+
+    # 원한 OTT가 후보에 없으면 침묵하면 안 된다. 넷플릭스 포함 요금제는
+    # 카탈로그에 35개뿐이고 최저가가 5만원대라 웬만한 예산에선 안 걸린다.
+    ott = scoring_agent.match({"budget_krw": 40000, "data_usage_gb": 50,
+                               "ott_preference": ["넷플릭스"]})
+    text = report(ott)
+    assert ott["ott_unavailable"], "넷플릭스가 후보에 없는데 그 사실을 안 담음"
+    assert "넷플릭스 포함 요금제가 없습니다" in text, f"OTT 부재를 말하지 않음:\n{text}"
+    assert "넷플릭스 미포함" in text, "요금제별로 OTT 미포함 표시가 안 붙음"
+
+    # 과잉 스펙을 장점이라 부르면 안 된다(월 3GB 쓰는 사람에게 "200GB로
+    # 66.7배 여유"는 자랑이 아니라 안 쓸 데이터에 돈을 낸다는 뜻이다).
+    light = scoring_agent.match({"data_usage_gb": 3, "budget_krw": 30000})
+    for _, row in light["candidates"].iterrows():
+        for f in row["strength"]:
+            assert not (f["code"] == "data_headroom" and f["ratio"] > 5), (
+                f"{row['plan_name']}: {f['ratio']:.1f}배 과잉을 장점으로 표시함"
+            )
     print("자체 점검 통과.")
 
 

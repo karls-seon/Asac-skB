@@ -255,6 +255,21 @@ def shortfalls(row, profile: dict) -> list[dict]:
         out.append({"code": "overage_risk", "field": "qos"})
     if row.get("tethering_support") == "unsupported":
         out.append({"code": "no_tethering", "field": "tethering"})
+    # 필요량의 10배를 넘으면 안 쓸 데이터에 돈을 내는 것이다. 부족한 건
+    # 아니지만 사용자가 알고 골라야 한다.
+    if usage and not row.get("data_unlimited") and pd.notna(gb) and gb > usage * 10:
+        out.append({"code": "data_oversized", "field": "data",
+                    "requested_gb": usage, "actual_gb": float(gb)})
+    # 원한 OTT가 없으면 말해야 한다. 넷플릭스를 콕 집어 말했는데 없는 걸
+    # 5개 보여주고 침묵하면 사용자는 포함된 줄 안다(실측: 넷플릭스 포함
+    # 요금제는 전체 35개뿐이고 최저가가 66,750원이라 웬만한 예산에선 후보에
+    # 하나도 안 남는다).
+    wanted = profile.get("ott_preference") or []
+    if wanted:
+        have = str(row.get("ott_options") or "")
+        absent = [o for o in wanted if o not in have]
+        if absent:
+            out.append({"code": "ott_missing", "field": "ott", "wanted": absent})
     return out
 
 
@@ -271,7 +286,10 @@ def strengths(row, profile: dict) -> list[dict]:
     gb = row.get("monthly_data_gb")
     if row.get("data_unlimited"):
         out.append({"code": "data_unlimited", "field": "data"})
-    elif usage and pd.notna(gb) and gb >= usage * 1.5:
+    # 여유는 장점이지만 과하면 아니다. 월 3GB 쓰는 사람에게 "200GB로 66.7배
+    # 여유"는 자랑이 아니라 안 쓸 데이터에 돈을 낸다는 뜻이다. 5배까지만
+    # 장점으로 말한다.
+    elif usage and pd.notna(gb) and usage * 1.5 <= gb <= usage * 5:
         out.append({"code": "data_headroom", "field": "data",
                     "actual_gb": float(gb), "ratio": float(gb) / usage})
     if row.get("voice_unlimited") and not profile.get("voice_unlimited_required"):
@@ -418,6 +436,12 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
     if headroom > 1.0 and profile.get("data_usage_gb"):
         w = {**w, "qos": w["qos"] * headroom}
 
+    # 사용자가 특정 OTT를 콕 집어 말했으면 기본 0.05로는 결과에 안 나타난다
+    # (실측: "넷플릭스가 중요하다"고 했는데 추천 5개에 하나도 없었다).
+    # 명시적으로 말한 조건은 무겁게 본다.
+    if profile.get("ott_preference"):
+        w = {**w, "ott": max(w["ott"], 0.25)}
+
     # 가격은 예산이 있으면 **예산 대비**로 잰다. 후보군 min-max로 재면
     # 기준선이 후보 구성에 따라 흔들린다 - 10원짜리 하나가 최저값을 잡으면
     # 나머지 2~3만원대가 전부 0점 근처로 뭉개지고, 후보가 2~3개만 남으면
@@ -447,7 +471,14 @@ def score(candidates: pd.DataFrame, profile: dict, weights: dict | None = None) 
         # 클 수 있어서 24GB짜리가 실제로 더 안전하다.
         ratio = _monthly_data_gb(df) / (usage * 1.5 * _headroom(profile))
         ratio[df["data_unlimited"].fillna(False)] = 1.0
-        df["_data_score"] = ratio.clip(0, 1).fillna(0.5)
+        # 포화점을 한참 넘는 건 감점한다. 안 쓸 데이터를 받는 것 자체는 죄가
+        # 아니지만 **그만큼 돈을 더 내기 때문**이다. 만점으로 두면 월 3GB
+        # 쓰는 사람에게 200GB짜리가 10GB짜리와 동점이 되고, 그러면 QoS·테더링
+        # 같은 부가 스펙이 좋은 고가 요금제가 위로 올라온다(실측: 49,200원
+        # 200GB가 2,325개 중 13위, 상위 50의 가격 중앙값이 25,980원이었다).
+        # 포화점의 3배까지는 그대로 두고(추정 오차 보험) 그 위부터 깎는다.
+        over = (ratio - 3).clip(lower=0)
+        df["_data_score"] = (ratio.clip(0, 1) - (over / 10).clip(0, 0.4)).fillna(0.5)
     else:
         data_score = _monthly_data_gb(df).copy()
         data_score[df["data_unlimited"].fillna(False)] = (
@@ -603,6 +634,7 @@ def match(profile: dict, top_n: int = 5) -> dict:
             "candidate_count": 0,
             "relaxation": suggest_relaxation(plans, profile),
             "min_cost_krw": cheapest_for(plans, profile),
+            "ott_unavailable": [],
             "profile": profile,
         }
 
@@ -616,8 +648,29 @@ def match(profile: dict, top_n: int = 5) -> dict:
         "candidate_count": len(eligible),
         "relaxation": [],
         "min_cost_krw": None,
+        "ott_unavailable": _ott_unavailable(plans, eligible, profile),
         "profile": profile,
     }
+
+
+def _ott_unavailable(plans: pd.DataFrame, eligible: pd.DataFrame, profile: dict) -> list[dict]:
+    """원한 OTT가 후보에 하나도 없을 때, 그게 되려면 얼마가 필요한지.
+
+    "없다"까지만 말하면 사용자는 다음에 뭘 해야 할지 모른다. 예산을 얼마로
+    올리면 되는지까지 말해야 선택할 수 있다.
+    """
+    out = []
+    for ott in profile.get("ott_preference") or []:
+        if eligible["ott_options"].fillna("").str.contains(ott, regex=False).any():
+            continue
+        has = plans[plans["ott_options"].fillna("").str.contains(ott, regex=False)]
+        cost = has["discounted_fee"].fillna(has["monthly_fee"])
+        out.append({
+            "ott": ott,
+            "plans_in_catalog": len(has),
+            "min_cost_krw": float(cost.min()) if len(cost) else None,
+        })
+    return out
 
 
 def demo():
