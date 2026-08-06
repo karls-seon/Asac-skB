@@ -22,3 +22,15 @@ class AppState(TypedDict, total=False):
     # 비어 있으면 정상 - 뒤쪽 에이전트는 이 값이 차 있을 때만 신경 쓰면 된다.
     drift_report_path: str      # 진단 리포트 경로. 회귀가 없으면 빈 문자열
     drift_regressed: dict       # {사이트: [파싱 안 된 소스 키]}
+
+    # --- 실시간 추천 그래프 (live_graph.py) ---
+    # 배치 파이프라인과 State 스키마는 공유하지만 그래프는 분리한다.
+    # 트리거가 다르기 때문이다(스케줄러 vs 사용자 요청).
+    user_input_raw: str         # 사용자가 입력한 자연어 그대로
+    user_profile: dict          # User Profiling이 뽑은 슬롯
+    profiling_complete: bool    # 추천을 시작할 만큼 슬롯이 찼는지
+    profiling_questions: list[str]  # 아직 못 받은 슬롯을 묻는 문장
+    match_result: dict          # Plan Matching 산출물(scoring_agent.match)
+    matching_retry_count: int   # 조건 완화 재시도 횟수
+    relaxed_slots: list[str]    # 자동으로 푼 조건. 리포트에 반드시 밝힌다
+    report_text: str            # 최종 답변
