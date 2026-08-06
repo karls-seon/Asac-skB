@@ -224,47 +224,55 @@ def _fmt(n) -> str:
     return f"{n:,.10g}"
 
 
-def shortfalls(row, profile: dict) -> list[str]:
+def shortfalls(row, profile: dict) -> list[dict]:
     """이 요금제가 요청 조건에 **못 미치는** 점. 비어 있으면 조건을 다 만족한다.
 
     하드 필터를 통과한 행이라도 부족할 수 있다 - 데이터 사용량은 필터가
     70%까지만 자르기 때문이다(그래야 데이터 축이 판별력을 갖는다).
+
+    **문장이 아니라 사실만 돌려준다.** 문장으로 바꾸는 건 Explanation 에이전트
+    몫이다(docs/멀티에이전트_아키텍처.md). 여기서 한국어를 완성해 버리면 그쪽이
+    어투·상세도·생략을 정할 수 없고, 받은 문장을 다시 쓰는 이상한 구조가 된다.
     """
     out = []
     usage = profile.get("data_usage_gb")
     gb = row.get("monthly_data_gb")
     if usage and not row.get("data_unlimited") and pd.notna(gb) and gb < usage:
-        out.append(f"데이터 {_fmt(gb)}GB로 사용량 {_fmt(usage)}GB보다 부족")
+        out.append({"code": "data_short", "field": "data",
+                    "requested_gb": usage, "actual_gb": float(gb)})
     if profile.get("data_unlimited_required") and not row.get("data_unlimited"):
-        out.append("데이터 무제한 아님")
+        out.append({"code": "data_not_unlimited", "field": "data"})
     if profile.get("voice_unlimited_required") and not row.get("voice_unlimited"):
-        out.append("통화 무제한 아님")
+        out.append({"code": "voice_not_unlimited", "field": "voice"})
     # 감속 없이 정량제면 다 쓰고 나서 초과 과금이다. 요청 조건은 아니지만
     # 사용자가 모르고 고르면 손해라 부족분과 같은 자리에서 알려준다.
     if (not row.get("data_unlimited")) and pd.isna(row.get("data_throttle_speed")):
-        out.append("데이터 소진 후 초과 과금")
+        out.append({"code": "overage_risk", "field": "qos"})
     if row.get("tethering_support") == "unsupported":
-        out.append("테더링 불가")
+        out.append({"code": "no_tethering", "field": "tethering"})
     return out
 
 
-def strengths(row, profile: dict) -> list[str]:
-    """요청보다 **나은** 점. 부족분만 보여주면 왜 추천했는지가 안 보인다."""
+def strengths(row, profile: dict) -> list[dict]:
+    """요청보다 **나은** 점. 부족분만 보여주면 왜 추천했는지가 안 보인다.
+    shortfalls와 마찬가지로 사실만 돌려준다."""
     out = []
     budget = profile.get("budget_krw")
     cost = row.get("monthly_cost")
     if budget and pd.notna(cost) and cost < budget * 0.7:
-        out.append(f"월 {_fmt(cost)}원으로 예산({_fmt(budget)}원)보다 저렴")
+        out.append({"code": "under_budget", "field": "price",
+                    "budget_krw": budget, "actual_krw": float(cost)})
     usage = profile.get("data_usage_gb")
     gb = row.get("monthly_data_gb")
     if row.get("data_unlimited"):
-        out.append("데이터 무제한")
+        out.append({"code": "data_unlimited", "field": "data"})
     elif usage and pd.notna(gb) and gb >= usage * 1.5:
-        out.append(f"데이터 {_fmt(gb)}GB로 사용량의 {gb / usage:.1f}배 여유")
+        out.append({"code": "data_headroom", "field": "data",
+                    "actual_gb": float(gb), "ratio": float(gb) / usage})
     if row.get("voice_unlimited") and not profile.get("voice_unlimited_required"):
-        out.append("통화 무제한")
+        out.append({"code": "voice_unlimited", "field": "voice"})
     if pd.isna(row.get("promo_ends_after")):
-        out.append("프로모션 없이 가격 그대로 유지")
+        out.append({"code": "stable_price", "field": "price"})
     return out
 
 
@@ -280,11 +288,12 @@ _RELAXABLE = {
 }
 
 
-def suggest_relaxation(plans: pd.DataFrame, profile: dict) -> list[str]:
+def suggest_relaxation(plans: pd.DataFrame, profile: dict) -> list[dict]:
     """조건이 서로 충돌해 후보가 없을 때, 무엇을 풀면 몇 개가 열리는지.
 
     "영상 자주 봄 + 월 2만원"처럼 사용자 스스로는 모순을 모르는 경우가 많다.
     조건을 하나씩 빼고 다시 세어 보면 어느 조건이 막고 있는지 바로 나온다.
+    아키텍처 문서상 "후보 0개면 조건 완화 재시도"는 Plan Matching 역할이다.
     """
     out = []
     for key, label in _RELAXABLE.items():
@@ -292,9 +301,8 @@ def suggest_relaxation(plans: pd.DataFrame, profile: dict) -> list[str]:
             continue
         opened = len(filter_eligible(plans, {k: v for k, v in profile.items() if k != key}))
         if opened:
-            out.append((opened, f"{label} 조건을 빼면 {opened}개"))
-    out.sort(reverse=True)
-    return [msg for _, msg in out]
+            out.append({"slot": key, "label": label, "opens": opened})
+    return sorted(out, key=lambda d: -d["opens"])
 
 
 def cheapest_for(plans: pd.DataFrame, profile: dict) -> float | None:
@@ -498,13 +506,19 @@ def _character(row, usage: float | None) -> tuple:
     건 맞지만 사용자 입장에선 고를 게 없는 목록이다.
     """
     promo = "특가" if pd.notna(row.get("promo_ends_after")) else "안정"
+    gb = row.get("monthly_data_gb")
     if row.get("data_unlimited"):
         data = "무제한"
-    elif usage and pd.notna(row.get("data_gb")) and row["data_gb"] >= usage * 3:
+    elif usage and pd.notna(gb) and gb >= usage * 3:
         data = "대용량"
     else:
         data = "적정"
-    return (promo, data)
+    # 가격대까지 봐야 한다. 데이터 규모와 프로모션 유무만으로 묶으면 스펙도
+    # 값도 사실상 같은 요금제가 이름만 달리해서 여러 줄 올라온다(실측: 같은
+    # 15,300원/100GB짜리가 3·4위를 나란히 차지했다). 5천원은 사용자가 체감하는
+    # 최소 단위라 그 아래 차이는 같은 선택지로 본다.
+    price_band = int((row.get("monthly_cost") or 0) // 5000)
+    return (promo, data, price_band)
 
 
 def diversify(ranked: pd.DataFrame, profile: dict, top_n: int) -> pd.DataFrame:
@@ -515,9 +529,14 @@ def diversify(ranked: pd.DataFrame, profile: dict, top_n: int) -> pd.DataFrame:
     거기까지만 한다. 실제로 부족하면 축을 늘릴 것.
     """
     usage = profile.get("data_usage_gb")
-    chars = ranked.apply(lambda r: _character(r, usage), axis=1)
-    # ranked는 이미 점수순이므로 각 성격의 첫 행이 그 성격의 최고점이다.
-    best_of_each = ranked[~chars.duplicated()]
+    # 성격을 고르는 범위를 **상위권으로 제한**한다. 전체에서 고르면 "그 성격의
+    # 1등"이라는 이유만으로 한참 아래 것이 올라온다 - 실측으로 1,543개 중
+    # 185위인 49,200원짜리가 상위 5에 들어왔다(사용자는 "통신비가 비싸다"고
+    # 말한 상황이었다). 다양성은 서로 겨룰 만한 후보들 사이에서만 의미가 있다.
+    pool = ranked.head(max(top_n * 10, 30))
+    chars = pool.apply(lambda r: _character(r, usage), axis=1)
+    # pool은 이미 점수순이므로 각 성격의 첫 행이 그 성격의 최고점이다.
+    best_of_each = pool[~chars.duplicated()]
     filler = ranked.drop(index=best_of_each.index)
     picked = pd.concat([best_of_each, filler]).head(top_n)
     # 무엇을 뽑을지는 다양성이 정하지만, 보여주는 순서는 점수순이어야 한다.
@@ -549,62 +568,51 @@ def recommend(profile: dict, weights: dict | None = None, top_n: int = 5) -> pd.
 
     out = diversify(ranked, profile, top_n).copy()
     gaps = out.apply(lambda r: shortfalls(r, profile), axis=1)
-    out["shortfall"] = gaps.apply(" / ".join)
-    out["strength"] = out.apply(lambda r: " / ".join(strengths(r, profile)), axis=1)
+    out["shortfall"] = gaps
+    out["strength"] = out.apply(lambda r: strengths(r, profile), axis=1)
     out["exact_match"] = gaps.apply(len) == 0
     return out[cols]
 
 
-def explain(profile: dict, top_n: int = 5) -> str:
-    """추천 결과를 사람이 읽는 답변으로 만든다.
+def match(profile: dict, top_n: int = 5) -> dict:
+    """Plan Matching 에이전트의 최종 산출물. **사실만** 담은 dict를 돌려준다.
 
-    점수 숫자를 그대로 보여주는 대신 ① 조건을 다 만족하는 게 몇 개인지
-    ② 각 요금제가 요청과 무엇이 다른지 ③ 하나도 없으면 어느 조건을 풀면
-    되는지를 말한다. KT M모바일 AI 추천을 직접 돌려보고 가져온 구조다
-    (2026-08-06) - 거기서 제일 쓸모 있었던 게 "정확히 일치하는 요금제는
-    없습니다"를 먼저 말하고 조건별 차이를 항목으로 적어주는 부분이었다.
+    아키텍처 문서(docs/멀티에이전트_아키텍처.md)상 이 에이전트가 State에 쓰는
+    것은 candidate_plans / ranking_scores이고, 자연어 리포트는 Explanation
+    에이전트 몫이다. 그래서 여기서는 한국어 문장을 만들지 않는다.
+
+    돌려주는 것:
+      candidates      추천 목록(DataFrame). 각 행에 shortfall/strength 사실 포함
+      total_exact     조건을 하나도 어기지 않는 요금제 수(후보 전체 기준)
+      candidate_count 필터를 통과한 요금제 수
+      relaxation      후보가 0개일 때 무엇을 풀면 몇 개가 열리는지
+      min_cost_krw    예산만 풀었을 때의 최소 월 납부액
     """
     plans = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
     eligible = filter_eligible(plans, profile)
 
     if eligible.empty:
-        lines = ["조건을 모두 만족하는 요금제가 없습니다."]
-        cheapest = cheapest_for(plans, profile)
-        budget = profile.get("budget_krw")
-        if budget and cheapest and cheapest > budget:
-            lines.append(f"- 다른 조건을 그대로 두면 최소 월 {_fmt(cheapest)}원이 필요합니다"
-                         f"(현재 예산 {_fmt(budget)}원).")
-        for msg in suggest_relaxation(plans, profile)[:3]:
-            lines.append(f"- {msg}가 후보에 들어옵니다.")
-        return "\n".join(lines)
+        return {
+            "candidates": pd.DataFrame(),
+            "total_exact": 0,
+            "candidate_count": 0,
+            "relaxation": suggest_relaxation(plans, profile),
+            "min_cost_krw": cheapest_for(plans, profile),
+            "profile": profile,
+        }
 
-    result = recommend(profile, top_n=top_n)
-    n_exact = int(result["exact_match"].sum())
     ranked_all = score(eligible, profile, pick_preset(profile))
     total_exact = int(
         (ranked_all.apply(lambda r: len(shortfalls(r, profile)), axis=1) == 0).sum()
     )
-
-    lines = []
-    if total_exact == 0:
-        lines.append("요청하신 조건에 **정확히** 맞는 요금제는 없습니다. "
-                     "가장 가까운 것들을 어떤 점이 다른지와 함께 보여드립니다.")
-    else:
-        lines.append(f"조건을 모두 만족하는 요금제가 {total_exact}개 있습니다. "
-                     f"성격이 다른 것들로 추려서 보여드립니다.")
-    lines.append("")
-
-    for i, (_, r) in enumerate(result.iterrows(), 1):
-        price = f"월 {_fmt(r['monthly_cost'])}원"
-        if pd.notna(r["promo_ends_after"]):
-            price += (f" ({_fmt(r['promo_ends_after'])}개월 후 "
-                      f"{_fmt(r['price_after_promo'])}원)")
-        lines.append(f"{i}. {r['plan_name']} — {price}")
-        if r["strength"]:
-            lines.append(f"   좋은 점: {r['strength']}")
-        if r["shortfall"]:
-            lines.append(f"   다른 점: {r['shortfall']}")
-    return "\n".join(lines)
+    return {
+        "candidates": recommend(profile, top_n=top_n),
+        "total_exact": total_exact,
+        "candidate_count": len(eligible),
+        "relaxation": [],
+        "min_cost_krw": None,
+        "profile": profile,
+    }
 
 
 def demo():
@@ -758,11 +766,25 @@ def demo():
     impossible = {"data_usage_gb": 30, "budget_krw": 8000,
                   "preferred_network": "5G", "data_unlimited_required": True}
     assert filter_eligible(plans, impossible).empty, "충돌 프로필인데 후보가 남음"
-    msg = explain(impossible)
-    assert "없습니다" in msg, f"후보가 없는데 그렇게 말하지 않음:\n{msg}"
-    assert suggest_relaxation(plans, impossible), "완화 제안을 하나도 못 내놓음"
-    print("\n=== 조건 충돌 시 안내 ===")
-    print(msg)
+    res = match(impossible)
+    assert res["candidate_count"] == 0, "충돌 프로필인데 후보 수가 0이 아님"
+    assert res["relaxation"], "완화 제안을 하나도 못 내놓음"
+    assert res["min_cost_krw"], "예산만 풀었을 때의 최소 금액을 못 구함"
+    print("\n=== 조건 충돌 시 사실 ===")
+    print(f"  최소 필요 금액: {res['min_cost_krw']:,.0f}원")
+    for r in res["relaxation"][:3]:
+        print(f"  {r['label']} 빼면 {r['opens']}개")
+
+    # 다양성이 한참 아래 순위를 끌어올리면 안 된다(49,200원짜리가 1,543개 중
+    # 185위인데 상위 5에 들어왔던 문제).
+    wide = {"data_usage_gb": 15, "current_carrier_type": "MNO", "current_carrier": "KT"}
+    ranked_wide = score(filter_eligible(plans, wide), wide)
+    picked = recommend(wide)
+    worst_rank = max(ranked_wide.index[ranked_wide["plan_id"] == pid][0]
+                     for pid in picked["plan_id"])
+    assert worst_rank < max(5 * 10, 30), (
+        f"다양성이 {worst_rank + 1}위짜리를 끌어올림 - 상위 풀 제한이 안 먹었다"
+    )
 
     print("\n자체 점검 통과.")
 
