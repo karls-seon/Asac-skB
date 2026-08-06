@@ -52,12 +52,28 @@ EXCLUDED_CATEGORIES: set[str] = {
 # KT는 "키즈/외국인"이 한 탭이라 웰컴(외국인) 3개가 키즈 5개와 같은 카테고리에
 # 섞여 있다. 카테고리로는 못 걸러내므로 age_condition 값으로 뺀다.
 EXCLUDED_AGE_CONDITIONS_PREFIXES = ("외국인", "복지카드")
-KEPT_NETWORK_GENS = {"5G", "LTE"}
+# 화이트리스트(5G/LTE만 통과)가 아니라 3G만 배제한다. KT는 상세페이지에
+# 세대 표기가 아예 없어서 network_gen이 비는데, 화이트리스트면 그 271행이
+# 통째로 사라진다. 빈값은 "모름"이 아니라 "세대 구분 없는 통합요금제"라는
+# 뜻이므로 수집 범위에서 뺄 이유가 없다(crawl_kt._guess_network_gen 참고).
+EXCLUDED_NETWORK_GENS = {"3G"}
+
+
+def has_data(plan: dict) -> bool:
+    """데이터를 조금이라도 주는 요금제인지. 무제한/월단위/일단위 중 하나."""
+    return (plan["data_unlimited"] == "True"
+            or plan["data_gb"] != ""
+            or plan["daily_data_gb"] != "")
 
 
 def in_scope(plan: dict) -> bool:
+    # 데이터를 아예 안 주는 음성전용 요금제(KT 음성 12.1, SKT 표준요금제 등)는
+    # 태블릿·워치를 뺀 것과 같은 이유로 뺀다 - 휴대폰 요금제 추천 대상의
+    # 스펙 구조가 아니다. 이걸 빼면 network_gen 빈값의 뜻도 하나로 정리된다
+    # ("데이터 요금제가 아니라 세대가 무의미"한 경우가 사라지므로).
     return (plan["plan_category"] not in EXCLUDED_CATEGORIES
-            and plan["network_gen"] in KEPT_NETWORK_GENS
+            and plan["network_gen"] not in EXCLUDED_NETWORK_GENS
+            and has_data(plan)
             and not plan["age_condition"].startswith(EXCLUDED_AGE_CONDITIONS_PREFIXES))
 
 

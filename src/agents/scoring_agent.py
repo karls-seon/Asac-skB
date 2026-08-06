@@ -169,7 +169,11 @@ def filter_eligible(plans: pd.DataFrame, profile: dict) -> pd.DataFrame:
 
     network = profile.get("preferred_network")
     if network:
-        df = df[df["network_gen"] == network]
+        # network_gen이 빈 요금제는 "세대 구분 없는 통합요금제"라 5G/LTE 어느
+        # 쪽을 원하든 후보로 남아야 한다. 값이 있는 것만 비교한다 - 안 그러면
+        # LTE 사용자에게 통신3사 요금제가 통째로 사라진다(KT는 271행 전부가
+        # 이 상태다).
+        df = df[df["network_gen"].isna() | (df["network_gen"] == network)]
 
     # 데이터를 아예 안 주는 음성전용 요금제(KT 음성 12.1, SKT 표준요금제 등
     # 19건)는 휴대폰 요금제를 찾는 사람에게 답이 될 수 없다. 사용자가 데이터를
