@@ -11,10 +11,23 @@
   ⑤ 이전 최종본과 plan_id 기준 비교 -> 신규/단종/범위이탈/변경
   ⑥ 이상 징후가 있으면 **최종본을 안 건드리고** 중단, 아니면 저장
   ⑦ data/review/ 에 리포트 2종 기록
+  ⑧ 반영됐으면 data_verify.py로 신규/변경 표본을 원문과 LLM 대조 (⑨ 참고)
 
 리포트를 사람이 아니라 **에이전트가 읽는다**는 전제로 설계했다. summary JSON만
 보면 "볼 게 있는지"를 바로 알 수 있고, 볼 게 있으면 changes CSV의 source_url로
 라이브 페이지까지 직접 확인할 수 있다.
+
+## ⑧ 원문 대조가 실패해도 갱신은 막지 않는다
+
+data_verify.py는 LLM으로 판정하므로 오탐이 날 수 있다(실제로 초기 버전에서
+두 차례 오탐이 났고, 그때마다 원문을 사람이 열어 대조 방식을 고쳤다 -
+docs/수정이력.md 15번, git log의 "fix: data_verify가 너겟/요고..." 참고).
+`check_guards()`처럼 개수 기반이라 결정적인 검사와 성격이 다르므로, 여기서는
+**최종 CSV 반영을 막지 않는다.** 불일치가 있으면 data/review/verify_*.md에
+리포트만 남고, 사람이 그걸 보고 판단한다. API 키가 없거나 스크립트가
+실패해도(subprocess 예외) 갱신 자체는 정상 종료한다 - 크롤러 4개와 같은 이유로
+subprocess로 띄운다(전역 상태 간섭 방지, 하나가 죽어도 나머지 파이프라인은
+안전).
 """
 import csv
 import json
@@ -34,6 +47,8 @@ PLAN_OUT = final_path("통신요금제_통합데이터_최종.csv")
 BENEFIT_OUT = final_path("통신요금제_혜택상세_최종.csv")
 
 CRAWLERS = ("crawl_kt", "crawl_skt", "crawl_lguplus", "crawl_moyo")
+DATA_VERIFY_SCRIPT = BASE_DIR / "src" / "agents" / "data_verify.py"
+VERIFY_SAMPLE_SIZE = 10
 
 # 값이 바뀌면 "변경"으로 기록할 필드. crawled_at은 매번 바뀌므로 뺀다.
 WATCHED_FIELDS = (
@@ -273,7 +288,27 @@ def main() -> int:
           f"단종 {kinds.get('단종', 0)} / 범위이탈 {kinds.get('범위이탈', 0)}")
     print(f"  {summary_path.relative_to(BASE_DIR)}")
     print(f"  {changes_path.relative_to(BASE_DIR)}")
+
+    if not violations and (kinds.get("신규", 0) or kinds.get("변경", 0)):
+        run_data_verify()
+
     return 1 if violations else 0
+
+
+def run_data_verify() -> None:
+    """방금 반영된 신규/변경 표본을 원문과 LLM으로 대조한다.
+
+    실패해도(키 없음, 예외 등) 갱신 자체를 막지 않는다 - 위 모듈 docstring
+    ⑧ 참고. 그래서 반환값도 안 보고 종료코드도 여기서 소비하지 않는다.
+    """
+    print("\n=== 원문 대조 (data_verify) ===")
+    try:
+        subprocess.run(
+            [sys.executable, str(DATA_VERIFY_SCRIPT), "--samples", str(VERIFY_SAMPLE_SIZE)],
+            cwd=BASE_DIR,
+        )
+    except Exception as e:
+        print(f"  원문 대조를 못 돌렸음(갱신에는 영향 없음): {e}")
 
 
 if __name__ == "__main__":
