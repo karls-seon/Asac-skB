@@ -1,0 +1,273 @@
+﻿change_type,plan_id,base_plan_id,host_mno,plan_category,plan_name,field,old_value,new_value,source_url
+신규,37417,37417,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_24개월할인,,,,https://www.moyoplan.com/plans/37417
+신규,37418,37418,KT,moyo,완전마음껏 100GB++(CU 20%)_24개월할인,,,,https://www.moyoplan.com/plans/37418
+신규,37419,37419,LGU+,moyo,요금걱정 제로 이야기 4.5GB+,,,,https://www.moyoplan.com/plans/37419
+신규,20569,20569,LGU+,moyo,이야기 6GB 350분,,,,https://www.moyoplan.com/plans/20569
+단종,37112,37112,LGU+,moyo,[Npay 12만 기본제공] 7GB+/통화기본,,,,https://www.moyoplan.com/plans/37112
+단종,24222,24222,LGU+,moyo,음성기본11GB+일2GB,,,,https://www.moyoplan.com/plans/24222
+단종,31483,31483,LGU+,moyo,[모요only] 음성기본100GB+,,,,https://www.moyoplan.com/plans/31483
+단종,23359,23359,LGU+,moyo,음성100분15GB+,,,,https://www.moyoplan.com/plans/23359
+단종,19568,19568,LGU+,moyo,음성기본100GB+,,,,https://www.moyoplan.com/plans/19568
+단종,19621,19621,LGU+,moyo,음성기본매일5GB+,,,,https://www.moyoplan.com/plans/19621
+단종,31482,31482,LGU+,moyo,[모요only] 음성기본11GB+일2GB,,,,https://www.moyoplan.com/plans/31482
+단종,24221,24221,LGU+,moyo,음성기본7GB+,,,,https://www.moyoplan.com/plans/24221
+단종,23540,23540,LGU+,moyo,음성기본10GB+,,,,https://www.moyoplan.com/plans/23540
+변경,36967,36967,KT,moyo,모두다 맘껏 10GB+(밀리의 서재 FREE),discounted_fee,19000,0,https://www.moyoplan.com/plans/36967
+변경,36967,36967,KT,moyo,모두다 맘껏 10GB+(밀리의 서재 FREE),discount_type,,모요 프로모션 페이백/할인,https://www.moyoplan.com/plans/36967
+변경,36967,36967,KT,moyo,모두다 맘껏 10GB+(밀리의 서재 FREE),discount_period_months,,8,https://www.moyoplan.com/plans/36967
+변경,36967,36967,KT,moyo,모두다 맘껏 10GB+(밀리의 서재 FREE),benefit_count,2,3,https://www.moyoplan.com/plans/36967
+변경,36971,36971,KT,moyo,5G 모두다 맘껏 안심 20GB+,discounted_fee,19900,0,https://www.moyoplan.com/plans/36971
+변경,36971,36971,KT,moyo,5G 모두다 맘껏 안심 20GB+,discount_type,,모요 프로모션 페이백/할인,https://www.moyoplan.com/plans/36971
+변경,36971,36971,KT,moyo,5G 모두다 맘껏 안심 20GB+,discount_period_months,,8,https://www.moyoplan.com/plans/36971
+변경,36971,36971,KT,moyo,5G 모두다 맘껏 안심 20GB+,benefit_count,2,4,https://www.moyoplan.com/plans/36971
+변경,36978,36978,KT,moyo,5G 데이터 충분 10GB/200분,discounted_fee,9400,0,https://www.moyoplan.com/plans/36978
+변경,36978,36978,KT,moyo,5G 데이터 충분 10GB/200분,discount_type,,모요 프로모션 페이백/할인,https://www.moyoplan.com/plans/36978
+변경,36978,36978,KT,moyo,5G 데이터 충분 10GB/200분,discount_period_months,,7,https://www.moyoplan.com/plans/36978
+변경,36978,36978,KT,moyo,5G 데이터 충분 10GB/200분,benefit_count,2,4,https://www.moyoplan.com/plans/36978
+변경,29062,29062,LGU+,moyo,데일리 너겟59,base_tethering_gb,70.0,,https://www.moyoplan.com/plans/29062
+변경,29062,29062,LGU+,moyo,데일리 너겟59,tethering_gb,70.0,,https://www.moyoplan.com/plans/29062
+변경,29062,29062,LGU+,moyo,데일리 너겟59,voice_extra_minutes,300,,https://www.moyoplan.com/plans/29062
+변경,29062,29062,LGU+,moyo,데일리 너겟59,benefit_count,5,4,https://www.moyoplan.com/plans/29062
+변경,36163,36163,KT,moyo,[모요only] 쉐이크only LTE 100GB+밀리의서재,discounted_fee,9900,11900,https://www.moyoplan.com/plans/36163
+변경,34786,34786,LGU+,moyo,음성기본 5GB+,discount_period_months,7,6,https://www.moyoplan.com/plans/34786
+변경,10364,10364,LGU+,moyo,DATA 걱정없는 유심 일5GB,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/10364
+변경,10364,10364,LGU+,moyo,DATA 걱정없는 유심 일5GB,tethering_gb,11.0,,https://www.moyoplan.com/plans/10364
+변경,10364,10364,LGU+,moyo,DATA 걱정없는 유심 일5GB,voice_extra_minutes,300,,https://www.moyoplan.com/plans/10364
+변경,10364,10364,LGU+,moyo,DATA 걱정없는 유심 일5GB,benefit_count,5,4,https://www.moyoplan.com/plans/10364
+변경,36256,36256,LGU+,moyo,5G 음성기본 150GB+5Mbps_24개월,discounted_fee,22650,22400,https://www.moyoplan.com/plans/36256
+변경,32399,32399,LGU+,moyo,쿠폰팩 유심 일5GB,voice_extra_minutes,300,,https://www.moyoplan.com/plans/32399
+변경,32399,32399,LGU+,moyo,쿠폰팩 유심 일5GB,benefit_count,5,3,https://www.moyoplan.com/plans/32399
+변경,18145,18145,LGU+,moyo,이야기 라이트 4.5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/18145
+변경,36614,36614,KT,moyo,티플 일5G＋(밀리의서재),benefit_count,4,2,https://www.moyoplan.com/plans/36614
+변경,37405,37405,LGU+,moyo,[모요only] 두해5G 통화기본125GB+ 유심비ZERO(일반),plan_name,[모요only] 두해5G 통화기본125GB+,[모요only] 두해5G 통화기본125GB+ 유심비ZERO(일반),https://www.moyoplan.com/plans/37405
+변경,37405,37405,LGU+,moyo,[모요only] 두해5G 통화기본125GB+ 유심비ZERO(일반),discounted_fee,22600,22300,https://www.moyoplan.com/plans/37405
+변경,37406,37406,LGU+,moyo,[모요only] 두해5G 통화기본150GB+ 유심비ZERO(일반),plan_name,[모요only] 두해5G 통화기본150GB+,[모요only] 두해5G 통화기본150GB+ 유심비ZERO(일반),https://www.moyoplan.com/plans/37406
+변경,37406,37406,LGU+,moyo,[모요only] 두해5G 통화기본150GB+ 유심비ZERO(일반),discounted_fee,22700,22400,https://www.moyoplan.com/plans/37406
+변경,37404,37404,LGU+,moyo,[모요only] 두해5G 통화기본95GB+ 유심비ZERO(일반),plan_name,[모요only] 두해5G 통화기본95GB+,[모요only] 두해5G 통화기본95GB+ 유심비ZERO(일반),https://www.moyoplan.com/plans/37404
+변경,37404,37404,LGU+,moyo,[모요only] 두해5G 통화기본95GB+ 유심비ZERO(일반),discounted_fee,22400,22200,https://www.moyoplan.com/plans/37404
+변경,35812,35812,KT,moyo,완전마음껏 100GB＋＋(CU 20%)_12개월할인,monthly_fee,55000,48400,https://www.moyoplan.com/plans/35812
+변경,35812,35812,KT,moyo,완전마음껏 100GB＋＋(CU 20%)_12개월할인,discounted_fee,27000,23900,https://www.moyoplan.com/plans/35812
+변경,35812,35812,KT,moyo,완전마음껏 100GB＋＋(CU 20%)_12개월할인,benefit_count,5,3,https://www.moyoplan.com/plans/35812
+변경,35806,35806,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_12개월할인,monthly_fee,52800,48400,https://www.moyoplan.com/plans/35806
+변경,35806,35806,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_12개월할인,discounted_fee,27000,23900,https://www.moyoplan.com/plans/35806
+변경,35806,35806,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_12개월할인,benefit_count,5,3,https://www.moyoplan.com/plans/35806
+변경,34816,34816,LGU+,moyo,음성기본,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/34816
+변경,34816,34816,LGU+,moyo,음성기본,tethering_gb,11.0,,https://www.moyoplan.com/plans/34816
+변경,34816,34816,LGU+,moyo,음성기본,voice_extra_minutes,300,,https://www.moyoplan.com/plans/34816
+변경,34816,34816,LGU+,moyo,음성기본,benefit_count,0,1,https://www.moyoplan.com/plans/34816
+변경,12283,12283,SKT,moyo,내맘대로S(200+5GB),network_gen,5G,LTE,https://www.moyoplan.com/plans/12283
+변경,35808,35808,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_18개월할인,monthly_fee,52800,48400,https://www.moyoplan.com/plans/35808
+변경,35808,35808,KT,moyo,완전마음껏 100GB＋＋(밀리의서재)_18개월할인,discounted_fee,29000,26500,https://www.moyoplan.com/plans/35808
+변경,20321,20321,SKT,moyo,함께이야기해S(100분+15GB),network_gen,5G,LTE,https://www.moyoplan.com/plans/20321
+변경,36627,36627,LGU+,moyo,NH콕 이야기 15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/36627
+변경,20100,20100,LGU+,moyo,"[일반] 통화, 데이터 마음대로 Pro_24개월",voice_extra_minutes,300,,https://www.moyoplan.com/plans/20100
+변경,23976,23976,LGU+,moyo,인스 유심 스트롱,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/23976
+변경,23976,23976,LGU+,moyo,인스 유심 스트롱,tethering_gb,11.0,,https://www.moyoplan.com/plans/23976
+변경,23976,23976,LGU+,moyo,인스 유심 스트롱,voice_extra_minutes,300,,https://www.moyoplan.com/plans/23976
+변경,35809,35809,KT,moyo,완전마음껏 100GB＋＋(CU 20%)_18개월할인,monthly_fee,55000,48400,https://www.moyoplan.com/plans/35809
+변경,35809,35809,KT,moyo,완전마음껏 100GB＋＋(CU 20%)_18개월할인,discounted_fee,29000,26500,https://www.moyoplan.com/plans/35809
+변경,23191,23191,LGU+,moyo,슈가칩 매일5GB++,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/23191
+변경,23191,23191,LGU+,moyo,슈가칩 매일5GB++,tethering_gb,11.0,,https://www.moyoplan.com/plans/23191
+변경,23191,23191,LGU+,moyo,슈가칩 매일5GB++,voice_extra_minutes,300,,https://www.moyoplan.com/plans/23191
+변경,36676,36676,LGU+,moyo,오래쓰는 ALL FREE,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/36676
+변경,36676,36676,LGU+,moyo,오래쓰는 ALL FREE,tethering_gb,11.0,,https://www.moyoplan.com/plans/36676
+변경,36676,36676,LGU+,moyo,오래쓰는 ALL FREE,voice_extra_minutes,300,,https://www.moyoplan.com/plans/36676
+변경,23997,23997,LGU+,moyo,티플 마음껏 매일5G＋_24개월요금,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/23997
+변경,23997,23997,LGU+,moyo,티플 마음껏 매일5G＋_24개월요금,tethering_gb,11.0,,https://www.moyoplan.com/plans/23997
+변경,13910,13910,LGU+,moyo,"[모빌카드 스페셜] 통화, 데이터 마음대로 Pro",voice_extra_minutes,300,,https://www.moyoplan.com/plans/13910
+변경,20322,20322,SKT,moyo,함께이야기해S(300분+15GB),network_gen,5G,LTE,https://www.moyoplan.com/plans/20322
+변경,24432,24432,KT,moyo,완전마음껏 100GB＋＋(네이버페이 매월 5000P),plan_name,완전마음껏 100GB＋＋(네이버페이 매월 10000P),완전마음껏 100GB＋＋(네이버페이 매월 5000P),https://www.moyoplan.com/plans/24432
+변경,24432,24432,KT,moyo,완전마음껏 100GB＋＋(네이버페이 매월 5000P),discounted_fee,14500,19500,https://www.moyoplan.com/plans/24432
+변경,24432,24432,KT,moyo,완전마음껏 100GB＋＋(네이버페이 매월 5000P),benefit_count,4,3,https://www.moyoplan.com/plans/24432
+변경,34880,34880,LGU+,moyo,두해 통화기본매일5GB+,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/34880
+변경,34880,34880,LGU+,moyo,두해 통화기본매일5GB+,tethering_gb,11.0,,https://www.moyoplan.com/plans/34880
+변경,34880,34880,LGU+,moyo,두해 통화기본매일5GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/34880
+변경,30914,30914,LGU+,moyo,이지 더 오래쓰는 무제한 일5G+5,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/30914
+변경,30914,30914,LGU+,moyo,이지 더 오래쓰는 무제한 일5G+5,tethering_gb,11.0,,https://www.moyoplan.com/plans/30914
+변경,30914,30914,LGU+,moyo,이지 더 오래쓰는 무제한 일5G+5,voice_extra_minutes,300,,https://www.moyoplan.com/plans/30914
+변경,17399,17399,KT,moyo,무제한일 5GB + 5Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/17399
+변경,31036,31036,LGU+,moyo,[평생할인] 일 5GB+/통화기본,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/31036
+변경,31036,31036,LGU+,moyo,[평생할인] 일 5GB+/통화기본,tethering_gb,11.0,,https://www.moyoplan.com/plans/31036
+변경,31036,31036,LGU+,moyo,[평생할인] 일 5GB+/통화기본,voice_extra_minutes,300,,https://www.moyoplan.com/plans/31036
+변경,29933,29933,LGU+,moyo,"[KG모바일 스페셜] 통화, 데이터 마음대로 Pro",voice_extra_minutes,300,,https://www.moyoplan.com/plans/29933
+변경,6074,6074,KT,moyo,스마트 데이터 충분 20GB+,voice_extra_minutes,0,,https://www.moyoplan.com/plans/6074
+변경,33130,33130,LGU+,moyo,시월 무제한 매일5GB+5Mbps,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/33130
+변경,33130,33130,LGU+,moyo,시월 무제한 매일5GB+5Mbps,tethering_gb,11.0,,https://www.moyoplan.com/plans/33130
+변경,33130,33130,LGU+,moyo,시월 무제한 매일5GB+5Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/33130
+변경,27775,27775,LGU+,moyo,시월 무제한 11GB+매일2GB+3Mbps,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27775
+변경,27775,27775,LGU+,moyo,시월 무제한 11GB+매일2GB+3Mbps,tethering_gb,11.0,,https://www.moyoplan.com/plans/27775
+변경,27775,27775,LGU+,moyo,시월 무제한 11GB+매일2GB+3Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27775
+변경,6073,6073,KT,moyo,스마트 데이터 충분 10GB+,voice_extra_minutes,0,,https://www.moyoplan.com/plans/6073
+변경,29236,29236,LGU+,moyo,이야기 데이터 FREE 15GB,network_gen,5G,LTE,https://www.moyoplan.com/plans/29236
+변경,30868,30868,LGU+,moyo,이지 무한 일5GB+5,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/30868
+변경,30868,30868,LGU+,moyo,이지 무한 일5GB+5,tethering_gb,11.0,,https://www.moyoplan.com/plans/30868
+변경,30868,30868,LGU+,moyo,이지 무한 일5GB+5,voice_extra_minutes,300,,https://www.moyoplan.com/plans/30868
+변경,23408,23408,LGU+,moyo,NA알뜰매일5GB+5Mbps,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/23408
+변경,23408,23408,LGU+,moyo,NA알뜰매일5GB+5Mbps,tethering_gb,11.0,,https://www.moyoplan.com/plans/23408
+변경,23408,23408,LGU+,moyo,NA알뜰매일5GB+5Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/23408
+변경,28098,28098,LGU+,moyo,스마트,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/28098
+변경,28098,28098,LGU+,moyo,스마트,tethering_gb,11.0,,https://www.moyoplan.com/plans/28098
+변경,28098,28098,LGU+,moyo,스마트,voice_extra_minutes,300,,https://www.moyoplan.com/plans/28098
+변경,25699,25699,KT,moyo,이야기K 데이터 15GB+(CU할인),network_gen,5G,LTE,https://www.moyoplan.com/plans/25699
+변경,29058,29058,LGU+,moyo,[일반] 데이터 마음대로 (4.5GB+/200분)_12개월,benefit_count,0,1,https://www.moyoplan.com/plans/29058
+변경,27453,27453,LGU+,moyo,Sugar 데이터안심 매일5GB++,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27453
+변경,27453,27453,LGU+,moyo,Sugar 데이터안심 매일5GB++,tethering_gb,11.0,,https://www.moyoplan.com/plans/27453
+변경,27453,27453,LGU+,moyo,Sugar 데이터안심 매일5GB++,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27453
+변경,25698,25698,KT,moyo,이야기K 데이터 15GB+(밀리의서재),network_gen,5G,LTE,https://www.moyoplan.com/plans/25698
+변경,29286,29286,SKT,moyo,이야기 데이터 무제한 15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/29286
+변경,27774,27774,LGU+,moyo,시월 무제한 100GB+5Mbps,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27774
+변경,27774,27774,LGU+,moyo,시월 무제한 100GB+5Mbps,tethering_gb,11.0,,https://www.moyoplan.com/plans/27774
+변경,27774,27774,LGU+,moyo,시월 무제한 100GB+5Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27774
+변경,28101,28101,KT,moyo,[모요only] [K] 핀다이렉트Z Max _PIN,voice_extra_minutes,300,,https://www.moyoplan.com/plans/28101
+변경,26361,26361,LGU+,moyo,"[평생할인] 통화, 데이터 마음대로 Pro",voice_extra_minutes,300,,https://www.moyoplan.com/plans/26361
+변경,23782,23782,KT,moyo,티플 10GB(10GB/0분),benefit_count,4,2,https://www.moyoplan.com/plans/23782
+변경,15069,15069,LGU+,moyo,이야기 스페셜 매일5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15069
+변경,23035,23035,LGU+,moyo,[24개월] 인스 유심 스트롱,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/23035
+변경,23035,23035,LGU+,moyo,[24개월] 인스 유심 스트롱,tethering_gb,11.0,,https://www.moyoplan.com/plans/23035
+변경,23035,23035,LGU+,moyo,[24개월] 인스 유심 스트롱,voice_extra_minutes,300,,https://www.moyoplan.com/plans/23035
+변경,30860,30860,KT,moyo,EG 무제한 일5G+5,voice_extra_minutes,300,,https://www.moyoplan.com/plans/30860
+변경,25309,25309,LGU+,moyo,스마트 데이터전용 20GB,base_tethering_gb,20.0,,https://www.moyoplan.com/plans/25309
+변경,25309,25309,LGU+,moyo,스마트 데이터전용 20GB,tethering_gb,20.0,,https://www.moyoplan.com/plans/25309
+변경,10584,10584,KT,moyo,모두 충분 일5GB+(왓챠),voice_extra_minutes,300,,https://www.moyoplan.com/plans/10584
+변경,35840,35840,KT,moyo,티플 100G＋(올리브영 매월 5000P),plan_name,티플 100G＋(올리브영 매월 10000P),티플 100G＋(올리브영 매월 5000P),https://www.moyoplan.com/plans/35840
+변경,35840,35840,KT,moyo,티플 100G＋(올리브영 매월 5000P),benefit_count,4,3,https://www.moyoplan.com/plans/35840
+변경,18613,18613,LGU+,moyo,[12개월]인스 유심 스트롱,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/18613
+변경,18613,18613,LGU+,moyo,[12개월]인스 유심 스트롱,tethering_gb,11.0,,https://www.moyoplan.com/plans/18613
+변경,18613,18613,LGU+,moyo,[12개월]인스 유심 스트롱,voice_extra_minutes,300,,https://www.moyoplan.com/plans/18613
+변경,15066,15066,LGU+,moyo,이야기 스탠다드 100분15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15066
+변경,13903,13903,LGU+,moyo,"[일반] 통화, 데이터 마음대로 Pro",voice_extra_minutes,300,,https://www.moyoplan.com/plans/13903
+변경,13903,13903,LGU+,moyo,"[일반] 통화, 데이터 마음대로 Pro",benefit_count,0,1,https://www.moyoplan.com/plans/13903
+변경,29948,29948,SKT,moyo,이야기 라이트S 300분 15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/29948
+변경,31398,31398,LGU+,moyo,[L] 핀다이렉트Z 일5GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/31398
+변경,16285,16285,SKT,moyo,이야기 스탠다드S 100분15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/16285
+변경,28701,28701,LGU+,moyo,디즈니+티빙 너겟65,base_tethering_gb,80.0,,https://www.moyoplan.com/plans/28701
+변경,28701,28701,LGU+,moyo,디즈니+티빙 너겟65,tethering_gb,80.0,,https://www.moyoplan.com/plans/28701
+변경,28701,28701,LGU+,moyo,디즈니+티빙 너겟65,voice_extra_minutes,300,,https://www.moyoplan.com/plans/28701
+변경,28701,28701,LGU+,moyo,디즈니+티빙 너겟65,benefit_count,6,2,https://www.moyoplan.com/plans/28701
+변경,16286,16286,SKT,moyo,이야기 스탠다드S 300분15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/16286
+변경,25234,25234,LGU+,moyo,스마트 데이터전용 10GB,base_tethering_gb,10.0,,https://www.moyoplan.com/plans/25234
+변경,25234,25234,LGU+,moyo,스마트 데이터전용 10GB,tethering_gb,10.0,,https://www.moyoplan.com/plans/25234
+변경,30833,30833,LGU+,moyo,[모요only] 프라임,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/30833
+변경,30833,30833,LGU+,moyo,[모요only] 프라임,tethering_gb,11.0,,https://www.moyoplan.com/plans/30833
+변경,30833,30833,LGU+,moyo,[모요only] 프라임,voice_extra_minutes,300,,https://www.moyoplan.com/plans/30833
+변경,29949,29949,SKT,moyo,이야기 라이트S 100분 15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/29949
+변경,26742,26742,KT,moyo,이야기K 데이터 15GB+(N Pay 5000P),network_gen,5G,LTE,https://www.moyoplan.com/plans/26742
+변경,26742,26742,KT,moyo,이야기K 데이터 15GB+(N Pay 5000P),discounted_fee,23300,18300,https://www.moyoplan.com/plans/26742
+변경,26742,26742,KT,moyo,이야기K 데이터 15GB+(N Pay 5000P),discount_period_months,24,7,https://www.moyoplan.com/plans/26742
+변경,28703,28703,LGU+,moyo,애플디바이스 너겟59,base_tethering_gb,70.0,,https://www.moyoplan.com/plans/28703
+변경,28703,28703,LGU+,moyo,애플디바이스 너겟59,tethering_gb,70.0,,https://www.moyoplan.com/plans/28703
+변경,28703,28703,LGU+,moyo,애플디바이스 너겟59,voice_extra_minutes,300,,https://www.moyoplan.com/plans/28703
+변경,28703,28703,LGU+,moyo,애플디바이스 너겟59,benefit_count,4,3,https://www.moyoplan.com/plans/28703
+변경,31478,31478,LGU+,moyo,쿠폰팩 통화기본매일5GB+,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/31478
+변경,31478,31478,LGU+,moyo,쿠폰팩 통화기본매일5GB+,tethering_gb,11.0,,https://www.moyoplan.com/plans/31478
+변경,31478,31478,LGU+,moyo,쿠폰팩 통화기본매일5GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/31478
+변경,16838,16838,KT,moyo,이야기K 데이터 15GB+(멜론),network_gen,5G,LTE,https://www.moyoplan.com/plans/16838
+변경,16837,16837,KT,moyo,이야기K 데이터 15GB+(지니뮤직),network_gen,5G,LTE,https://www.moyoplan.com/plans/16837
+변경,25697,25697,KT,moyo,이야기K 데이터 7GB+(밀리의서재),discounted_fee,11900,9900,https://www.moyoplan.com/plans/25697
+변경,25697,25697,KT,moyo,이야기K 데이터 7GB+(밀리의서재),discount_period_months,24,7,https://www.moyoplan.com/plans/25697
+변경,15067,15067,LGU+,moyo,이야기 스탠다드 300분15GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15067
+변경,20568,20568,LGU+,moyo,내맘대로 (100분+3.5GB),network_gen,5G,LTE,https://www.moyoplan.com/plans/20568
+변경,27776,27776,LGU+,moyo,시월 무제한 7GB+1Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27776
+변경,27858,27858,LGU+,moyo,스마트,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27858
+변경,27858,27858,LGU+,moyo,스마트,tethering_gb,11.0,,https://www.moyoplan.com/plans/27858
+변경,31484,31484,LGU+,moyo,[모요only] 음성기본매일5GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/31484
+변경,27750,27750,LGU+,moyo,시월 무제한 15GB+1Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27750
+변경,26866,26866,LGU+,moyo,음성기본,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/26866
+변경,26866,26866,LGU+,moyo,음성기본,tethering_gb,11.0,,https://www.moyoplan.com/plans/26866
+변경,26866,26866,LGU+,moyo,음성기본,voice_extra_minutes,300,,https://www.moyoplan.com/plans/26866
+변경,27749,27749,LGU+,moyo,시월 무제한 10GB+1Mbps,voice_extra_minutes,300,,https://www.moyoplan.com/plans/27749
+변경,15071,15071,LGU+,moyo,이야기 라이트 100분5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15071
+변경,27375,27375,LGU+,moyo,세이브머니유심(태블릿/스마트기기 20GB),base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27375
+변경,27375,27375,LGU+,moyo,세이브머니유심(태블릿/스마트기기 20GB),tethering_gb,11.0,,https://www.moyoplan.com/plans/27375
+변경,27852,27852,LGU+,moyo,후후 스마트,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27852
+변경,27852,27852,LGU+,moyo,후후 스마트,tethering_gb,11.0,,https://www.moyoplan.com/plans/27852
+변경,22824,22824,LGU+,moyo,수다맘껏데이터150G+,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/22824
+변경,22824,22824,LGU+,moyo,수다맘껏데이터150G+,tethering_gb,11.0,,https://www.moyoplan.com/plans/22824
+변경,22824,22824,LGU+,moyo,수다맘껏데이터150G+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/22824
+변경,15073,15073,LGU+,moyo,이야기 라이트 250분2.5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15073
+변경,16497,16497,LGU+,moyo,[L]매일5GB+,base_tethering_gb,5.0,,https://www.moyoplan.com/plans/16497
+변경,16497,16497,LGU+,moyo,[L]매일5GB+,tethering_gb,5.0,,https://www.moyoplan.com/plans/16497
+변경,16497,16497,LGU+,moyo,[L]매일5GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/16497
+변경,32358,32358,SKT,moyo,air X(무제한),base_tethering_gb,50.0,,https://www.moyoplan.com/plans/32358
+변경,32358,32358,SKT,moyo,air X(무제한),tethering_gb,50.0,,https://www.moyoplan.com/plans/32358
+변경,32358,32358,SKT,moyo,air X(무제한),voice_extra_minutes,300,,https://www.moyoplan.com/plans/32358
+변경,15064,15064,LGU+,moyo,이야기 베이직 2.5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15064
+변경,15065,15065,LGU+,moyo,이야기 라이트 3.5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15065
+변경,15072,15072,LGU+,moyo,이야기 라이트 200분2.5GB+,network_gen,5G,LTE,https://www.moyoplan.com/plans/15072
+변경,27344,27344,LGU+,moyo,세이브머니유심(태블릿/스마트기기 10GB),base_tethering_gb,10.0,,https://www.moyoplan.com/plans/27344
+변경,27344,27344,LGU+,moyo,세이브머니유심(태블릿/스마트기기 10GB),tethering_gb,10.0,,https://www.moyoplan.com/plans/27344
+변경,22810,22810,KT,moyo,요고 61,base_tethering_gb,50.0,,https://www.moyoplan.com/plans/22810
+변경,22810,22810,KT,moyo,요고 61,tethering_gb,50.0,,https://www.moyoplan.com/plans/22810
+변경,22810,22810,KT,moyo,요고 61,voice_extra_minutes,300,,https://www.moyoplan.com/plans/22810
+변경,22809,22809,KT,moyo,요고 69,base_tethering_gb,70.0,,https://www.moyoplan.com/plans/22809
+변경,22809,22809,KT,moyo,요고 69,tethering_gb,70.0,,https://www.moyoplan.com/plans/22809
+변경,22809,22809,KT,moyo,요고 69,voice_extra_minutes,300,,https://www.moyoplan.com/plans/22809
+변경,20270,20270,LGU+,moyo,LTE 150GB+,base_tethering_gb,11.0,,https://www.moyoplan.com/plans/20270
+변경,20270,20270,LGU+,moyo,LTE 150GB+,tethering_gb,11.0,,https://www.moyoplan.com/plans/20270
+변경,20270,20270,LGU+,moyo,LTE 150GB+,voice_extra_minutes,300,,https://www.moyoplan.com/plans/20270
+변경,19590,19590,KT,moyo,LTE 무제한 일 5GB+(블라이스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/19590
+변경,27376,27376,LGU+,moyo,세이브머니유심(태블릿/스마트기기 25GB+),base_tethering_gb,11.0,,https://www.moyoplan.com/plans/27376
+변경,27376,27376,LGU+,moyo,세이브머니유심(태블릿/스마트기기 25GB+),tethering_gb,11.0,,https://www.moyoplan.com/plans/27376
+변경,36952,36952,KT,moyo,LTE 150GB+(밀리의서재),voice_extra_minutes,300,,https://www.moyoplan.com/plans/36952
+변경,36956,36956,KT,moyo,LTE 150GB+(CU),voice_extra_minutes,300,,https://www.moyoplan.com/plans/36956
+변경,36956,36956,KT,moyo,LTE 150GB+(CU),benefit_count,0,1,https://www.moyoplan.com/plans/36956
+변경,21757,21757,SKT,moyo,0청년 다이렉트62(넷플릭스),base_tethering_gb,80.0,,https://www.moyoplan.com/plans/21757
+변경,21757,21757,SKT,moyo,0청년 다이렉트62(넷플릭스),tethering_gb,80.0,,https://www.moyoplan.com/plans/21757
+변경,21757,21757,SKT,moyo,0청년 다이렉트62(넷플릭스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/21757
+변경,21757,21757,SKT,moyo,0청년 다이렉트62(넷플릭스),benefit_count,9,2,https://www.moyoplan.com/plans/21757
+변경,27326,27326,SKT,moyo,0 청년 다이렉트 69(디즈니+),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27326
+변경,27326,27326,SKT,moyo,0 청년 다이렉트 69(디즈니+),tethering_gb,100.0,,https://www.moyoplan.com/plans/27326
+변경,27326,27326,SKT,moyo,0 청년 다이렉트 69(디즈니+),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27326
+변경,27326,27326,SKT,moyo,0 청년 다이렉트 69(디즈니+),benefit_count,9,2,https://www.moyoplan.com/plans/27326
+변경,15407,15407,SKT,moyo,0 청년 다이렉트 62,base_tethering_gb,80.0,,https://www.moyoplan.com/plans/15407
+변경,15407,15407,SKT,moyo,0 청년 다이렉트 62,tethering_gb,80.0,,https://www.moyoplan.com/plans/15407
+변경,15407,15407,SKT,moyo,0 청년 다이렉트 62,voice_extra_minutes,300,,https://www.moyoplan.com/plans/15407
+변경,15407,15407,SKT,moyo,0 청년 다이렉트 62,benefit_count,8,2,https://www.moyoplan.com/plans/15407
+변경,27327,27327,SKT,moyo,다이렉트5G 69(디즈니+),base_tethering_gb,80.0,,https://www.moyoplan.com/plans/27327
+변경,27327,27327,SKT,moyo,다이렉트5G 69(디즈니+),tethering_gb,80.0,,https://www.moyoplan.com/plans/27327
+변경,27327,27327,SKT,moyo,다이렉트5G 69(디즈니+),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27327
+변경,27327,27327,SKT,moyo,다이렉트5G 69(디즈니+),benefit_count,6,2,https://www.moyoplan.com/plans/27327
+변경,21760,21760,SKT,moyo,다이렉트5G 69(넷플릭스),base_tethering_gb,80.0,,https://www.moyoplan.com/plans/21760
+변경,21760,21760,SKT,moyo,다이렉트5G 69(넷플릭스),tethering_gb,80.0,,https://www.moyoplan.com/plans/21760
+변경,21760,21760,SKT,moyo,다이렉트5G 69(넷플릭스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/21760
+변경,21760,21760,SKT,moyo,다이렉트5G 69(넷플릭스),benefit_count,6,2,https://www.moyoplan.com/plans/21760
+변경,27328,27328,SKT,moyo,다이렉트5G 76(넷플릭스),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27328
+변경,27328,27328,SKT,moyo,다이렉트5G 76(넷플릭스),tethering_gb,100.0,,https://www.moyoplan.com/plans/27328
+변경,27328,27328,SKT,moyo,다이렉트5G 76(넷플릭스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27328
+변경,27328,27328,SKT,moyo,다이렉트5G 76(넷플릭스),benefit_count,6,2,https://www.moyoplan.com/plans/27328
+변경,21758,21758,SKT,moyo,0청년 다이렉트69(넷플릭스),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/21758
+변경,21758,21758,SKT,moyo,0청년 다이렉트69(넷플릭스),tethering_gb,100.0,,https://www.moyoplan.com/plans/21758
+변경,21758,21758,SKT,moyo,0청년 다이렉트69(넷플릭스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/21758
+변경,21758,21758,SKT,moyo,0청년 다이렉트69(넷플릭스),benefit_count,9,2,https://www.moyoplan.com/plans/21758
+변경,14829,14829,SKT,moyo,다이렉트5G 62,base_tethering_gb,60.0,,https://www.moyoplan.com/plans/14829
+변경,14829,14829,SKT,moyo,다이렉트5G 62,tethering_gb,60.0,,https://www.moyoplan.com/plans/14829
+변경,14829,14829,SKT,moyo,다이렉트5G 62,voice_extra_minutes,300,,https://www.moyoplan.com/plans/14829
+변경,14829,14829,SKT,moyo,다이렉트5G 62,benefit_count,6,2,https://www.moyoplan.com/plans/14829
+변경,27329,27329,SKT,moyo,다이렉트5G 76(디즈니+),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27329
+변경,27329,27329,SKT,moyo,다이렉트5G 76(디즈니+),tethering_gb,100.0,,https://www.moyoplan.com/plans/27329
+변경,27329,27329,SKT,moyo,다이렉트5G 76(디즈니+),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27329
+변경,27329,27329,SKT,moyo,다이렉트5G 76(디즈니+),benefit_count,6,2,https://www.moyoplan.com/plans/27329
+변경,27331,27331,SKT,moyo,다이렉트5G 76(유튜브 프리미엄),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27331
+변경,27331,27331,SKT,moyo,다이렉트5G 76(유튜브 프리미엄),tethering_gb,100.0,,https://www.moyoplan.com/plans/27331
+변경,27331,27331,SKT,moyo,다이렉트5G 76(유튜브 프리미엄),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27331
+변경,27331,27331,SKT,moyo,다이렉트5G 76(유튜브 프리미엄),benefit_count,6,2,https://www.moyoplan.com/plans/27331
+변경,27318,27318,SKT,moyo,다이렉트5G 69(T 우주),base_tethering_gb,80.0,,https://www.moyoplan.com/plans/27318
+변경,27318,27318,SKT,moyo,다이렉트5G 69(T 우주),tethering_gb,80.0,,https://www.moyoplan.com/plans/27318
+변경,27318,27318,SKT,moyo,다이렉트5G 69(T 우주),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27318
+변경,27318,27318,SKT,moyo,다이렉트5G 69(T 우주),benefit_count,6,2,https://www.moyoplan.com/plans/27318
+변경,21759,21759,SKT,moyo,다이렉트5G 62(넷플릭스),base_tethering_gb,60.0,,https://www.moyoplan.com/plans/21759
+변경,21759,21759,SKT,moyo,다이렉트5G 62(넷플릭스),tethering_gb,60.0,,https://www.moyoplan.com/plans/21759
+변경,21759,21759,SKT,moyo,다이렉트5G 62(넷플릭스),voice_extra_minutes,300,,https://www.moyoplan.com/plans/21759
+변경,21759,21759,SKT,moyo,다이렉트5G 62(넷플릭스),benefit_count,7,2,https://www.moyoplan.com/plans/21759
+변경,27317,27317,SKT,moyo,0 청년 다이렉트 69(T우주),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27317
+변경,27317,27317,SKT,moyo,0 청년 다이렉트 69(T우주),tethering_gb,100.0,,https://www.moyoplan.com/plans/27317
+변경,27317,27317,SKT,moyo,0 청년 다이렉트 69(T우주),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27317
+변경,27317,27317,SKT,moyo,0 청년 다이렉트 69(T우주),benefit_count,8,2,https://www.moyoplan.com/plans/27317
+변경,27330,27330,SKT,moyo,다이렉트5G 76(스마트 기기),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27330
+변경,27330,27330,SKT,moyo,다이렉트5G 76(스마트 기기),tethering_gb,100.0,,https://www.moyoplan.com/plans/27330
+변경,27330,27330,SKT,moyo,다이렉트5G 76(스마트 기기),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27330
+변경,27330,27330,SKT,moyo,다이렉트5G 76(스마트 기기),benefit_count,6,2,https://www.moyoplan.com/plans/27330
+변경,27321,27321,SKT,moyo,다이렉트5G 76(T 우주),base_tethering_gb,100.0,,https://www.moyoplan.com/plans/27321
+변경,27321,27321,SKT,moyo,다이렉트5G 76(T 우주),tethering_gb,100.0,,https://www.moyoplan.com/plans/27321
+변경,27321,27321,SKT,moyo,다이렉트5G 76(T 우주),voice_extra_minutes,300,,https://www.moyoplan.com/plans/27321
+변경,27321,27321,SKT,moyo,다이렉트5G 76(T 우주),benefit_count,7,2,https://www.moyoplan.com/plans/27321

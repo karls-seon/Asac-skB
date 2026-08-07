@@ -187,7 +187,13 @@ def _source_text(row: dict) -> str | None:
     상세페이지를 대조했더니 "7개월 이후 11,550원"이 거기 없어서 멀쩡한
     monthly_fee가 불일치로 잡혔다(수정이력 15번이 경고한 출처 불일치).
     """
-    if source_of(row) == "MVNO(모요)":
+    # carrier_type이 아니라 plan_category로 갈라야 한다. 너겟/요고를 모요가
+    # 중개하는 행은 carrier_type이 MNO로 재분류돼 있지만(2026-08-06 수정)
+    # 값 자체는 여전히 crawl_moyo.py가 목록 카드에서 뽑는다. carrier_type으로
+    # 가르면 이런 행이 상세페이지로 새서 "정상가 59,000원"(상세)과 "6개월 이후
+    # 34,000원"(목록 카드, 우리가 실제로 쓴 값)이 서로 다른 근거로 비교돼
+    # 멀쩡한 값이 불일치로 잡힌다(plan_id 29062로 실측).
+    if row.get("plan_category") == "moyo":
         needle = re.sub(r"\s+", "", row.get("plan_name", ""))
         if not needle:
             return None
@@ -466,6 +472,23 @@ def demo() -> None:
         f" ({moyo['plan_name']}, {moyo['monthly_fee']})"
     )
     print(f"모요 출처 OK - 목록 카드에서 정상가 확인 ({moyo['plan_name']})")
+
+    # 너겟/요고처럼 모요가 중개하는 통신3사 상품은 carrier_type이 MNO로
+    # 재분류돼 있지만(2026-08-06 수정) 값 자체는 여전히 모요 목록 카드에서
+    # 온다. carrier_type으로 갈랐다가 실제로 정상가가 불일치로 잡혔었다
+    # (plan_id 29062, 상세페이지 "59,000원" vs 목록 카드 "34,000원").
+    reclassified = [r for r in final_rows
+                    if r.get("plan_category") == "moyo" and r.get("carrier_type") == "MNO"
+                    and not _is_synthesized_name(r)]
+    assert reclassified, "plan_category=moyo인데 carrier_type=MNO인 행이 없음"
+    r = next((r for r in reclassified if excerpt_for(r)), None)
+    assert r is not None, "재분류된 모요 행에서 발췌를 하나도 못 만듦"
+    flat = re.sub(r"\s+", "", excerpt_for(r))
+    assert re.sub(r"\s+", "", f"{int(float(r['monthly_fee'])):,}") in flat, (
+        f"carrier_type=MNO인 모요 행이 목록 카드가 아니라 상세페이지로 샘 "
+        f"({r['plan_name']})"
+    )
+    print(f"너겟/요고(모요 재분류) 출처 OK ({r['plan_name']})")
 
     # 캐시 매핑 + 구간 추출: 4사 전부
     for site in ("KT", "SKT", "LGU+", "MVNO(모요)"):
