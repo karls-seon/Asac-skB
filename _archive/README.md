@@ -31,12 +31,16 @@ Data Retrieval을 **읽기 전용**으로 줄이면서 런타임에서 빠졌습
 > ⚠️ **`src/schema.py`는 안 옮겼습니다.** 경로 상수와 컬럼 정의를 담고 있어
 > Data Retrieval / Plan Matching이 모두 의존합니다.
 
-### `analysis/`, `notebooks/`
+### `notebooks/`
 
 | 파일 | 사유 |
 |---|---|
-| `generate_synthetic_customers.py` | Usage Prediction / Segmentation용 합성 고객 생성기. 그 에이전트가 제외됐고, Plan Matching도 합성 데이터를 안 씀 |
 | `eda_plans.ipynb` | 데이터 탐색용. 런타임 의존성이 아님 |
+
+> `analysis/generate_synthetic_customers.py`(합성 고객 생성기)와
+> `data/synthetic/`은 2026-08-10에 **삭제**했습니다. 여기로 옮긴 게 아니라
+> 지운 것이고, 세그먼트 설계를 처음부터 다시 하기로 해서 옛 설계가 남아 있으면
+> 오히려 방해가 되기 때문입니다. 필요하면 git 이력에서 되살릴 수 있습니다.
 
 ## 되살리는 법
 
