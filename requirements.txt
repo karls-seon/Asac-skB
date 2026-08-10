@@ -1,12 +1,12 @@
-# PoC 4개 에이전트(Orchestrator / User Profiling / Data Retrieval /
-# Plan Matching) 실행에 필요한 것만 남겼다.
-langgraph
+# 수집 파이프라인(src/crawl_*.py, merge_plans.py, refresh_plans.py)
+requests
+beautifulsoup4
+selenium          # LG U+ 수집에만 필요 (목록이 SPA라 브라우저가 있어야 보임)
+
+# 원문 대조 진단(src/agents/data_verify.py)
 openai
 python-dotenv
-pandas
 
-# 아래는 _archive/로 옮긴 코드가 쓰던 것이라 뺐다. 되살릴 때 같이 설치한다.
-#   requests, beautifulsoup4, selenium  -> 수집 파이프라인(_archive/pipeline/)
-#                                          selenium은 LGU+ 수집에만 필요
-#   matplotlib, seaborn, jupyter        -> EDA 노트북(_archive/notebooks/)
-#   numpy                               -> 직접 쓰는 곳이 없다(pandas가 끌어옴)
+# 아래는 지금 코드가 직접 쓰지 않는다. 되살릴 때 같이 설치한다.
+#   langgraph                    -> 에이전트 그래프 (다시 설계 중)
+#   pandas, matplotlib, seaborn, jupyter -> EDA 노트북(_archive/notebooks/)

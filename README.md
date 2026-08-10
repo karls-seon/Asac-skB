@@ -13,7 +13,11 @@
 │   ├── crawl_lguplus.py
 │   ├── crawl_moyo.py
 │   ├── merge_plans.py      중간 CSV -> 최종 CSV 병합 (수집 범위 필터도 여기)
-│   └── refresh_plans.py    ★ 일일 갱신 (수집→병합→이전본과 비교→반영)
+│   ├── refresh_plans.py    ★ 일일 갱신 (수집→병합→이전본과 비교→반영)
+│   └── agents/
+│       ├── schema_drift.py         사이트 개편으로 파싱이 조용히 깨졌는지 진단
+│       ├── data_verify.py          갱신분을 원문과 표본 대조 (LLM, 진단만)
+│       └── data_retrieval_agent.py 최종 CSV 읽기 + 구조 검증 (읽기 전용)
 ├── data/
 │   ├── raw_cache/<사이트>/   수집한 원본 HTML·JSON (재파싱용)
 │   ├── interim/            사이트별 중간 CSV
@@ -134,7 +138,8 @@ pip install -r requirements.txt
 브라우저 없이는 카드가 보이지 않습니다. 나머지 3개 사이트와 모든 `--parse-only`
 실행은 브라우저가 필요 없습니다.
 
-`langgraph`/`python-dotenv`는 `src/agents/`(멀티에이전트 파이프라인)에서 씁니다.
+`openai`/`python-dotenv`는 `src/agents/data_verify.py`(원문 대조 진단)에서만 씁니다.
+키가 없으면 이 단계만 건너뛰고 갱신 자체는 정상 동작합니다.
 
 ## 새 컴퓨터에서 이어서 작업하기
 
@@ -153,9 +158,9 @@ copy .env.example .env   # 실제 API 키는 이 파일에 직접 채운다 (git
    raw_cache를 다른 방법으로(USB, 클라우드 등) 직접 옮겨야 한다. 없으면
    `python src/refresh_plans.py`(전체 재수집)부터 한 번 돌려서 새로 만들면 된다.
 
-동작 확인:
+동작 확인 (네트워크 없이 최종 CSV만 읽어 구조 검증):
 ```bash
-python src/agents/graph.py
+python src/agents/data_retrieval_agent.py
 ```
 
 ## 알아둘 점

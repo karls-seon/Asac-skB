@@ -38,6 +38,7 @@ import argparse
 import csv
 import glob
 import json
+import os
 import random
 import re
 import sys
@@ -48,8 +49,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from schema import BASE_DIR, RAW_CACHE_DIR, final_path  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from user_agent import _load_key  # noqa: E402  (같은 .env 로딩 재사용)
+
+def _load_key() -> str | None:
+    """.env에서 키를 읽는다. python-dotenv가 있으면 그걸 쓴다."""
+    if os.environ.get("OPENAI_API_KEY"):
+        return os.environ["OPENAI_API_KEY"]
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(BASE_DIR / ".env")
+    except ImportError:
+        pass
+    return os.environ.get("OPENAI_API_KEY")
+
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
