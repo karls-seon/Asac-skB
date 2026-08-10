@@ -39,7 +39,7 @@ from bs4 import BeautifulSoup
 
 from schema import (
     write_plans, write_benefits, summarize_benefits, to_gb, to_won, make_benefit_row,
-    cache_dir, interim_path,
+    classify_benefit_name, cache_dir, interim_path,
 )
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -434,8 +434,13 @@ def parse_detail(plan_id: str, plan_name: str):
         if not label:
             continue
         detail = " ".join(s.get_text(" ", strip=True) for s in a.select("span") if "대상:" in s.get_text() or "시기:" in s.get_text())
+        # 링크가 /gift-group/이라고 다 사은품인 건 아니다. 모요는 OTT 구독권
+        # (밀리의 서재/티빙), 결합 추가데이터(솔로결합 +20GB), 멤버십까지 전부
+        # 같은 링크로 붙여 놔서, 링크 종류로 카테고리를 정하면 MVNO 혜택이
+        # 통째로 사은품 하나로 몰린다. 3사와 같은 이름 기반 규칙을 쓰고,
+        # 단서가 없을 때만 사은품으로 둔다.
         benefits.append(make_benefit_row(
-            plan_id, "", plan_name, "사은품/페이백", label,
+            plan_id, "", plan_name, classify_benefit_name(label, "사은품/페이백"), label,
             value_won=_recurring_payback_won(label) or _parse_krw(label) or "",
             detail=detail, source_url=url,
         ))
