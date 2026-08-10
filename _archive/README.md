@@ -2,33 +2,23 @@
 
 지운 게 아니라 옮긴 것이고, `git mv`를 썼으므로 커밋 이력이 그대로 따라옵니다.
 
-## `agents/` — 추천 에이전트 (재설계 중)
-
-2026-08-06에 PoC 범위를 좁히면서 옮긴 것들입니다. 2026-08-10에 나머지 에이전트
-코드(`graph.py`, `state.py`, `user_agent.py`, `scoring_agent.py`)를 **삭제**하고
-설계를 처음부터 다시 하기로 하면서, 여기 남은 파일들도 **지금은 그대로 돌지
-않습니다** — 삭제된 모듈을 import합니다. 옛 구현을 참고할 때만 보세요.
-
-| 파일 | 내용 |
-|---|---|
-| `explanation_agent.py` | 추천 사유를 자연어 문장으로 생성 |
-| `ask.py` | 위 에이전트를 부르던 CLI 진입점 |
-| `live_graph.py` | 실시간(사용자 요청) 그래프 |
-
 ## `notebooks/`
 
 | 파일 | 사유 |
 |---|---|
 | `eda_plans.ipynb` | 데이터 탐색용. 런타임 의존성이 아님 |
 
-> `analysis/generate_synthetic_customers.py`(합성 고객 생성기)와
-> `data/synthetic/`은 2026-08-10에 **삭제**했습니다. 여기로 옮긴 게 아니라
-> 지운 것이고, 세그먼트 설계를 처음부터 다시 하기로 해서 옛 설계가 남아 있으면
-> 오히려 방해가 되기 때문입니다. 필요하면 git 이력에서 되살릴 수 있습니다.
+## 여기 없는 것
 
-## 수집 파이프라인은 여기 없습니다
+**추천 에이전트**는 2026-08-10에 전부 **삭제**했습니다(`graph.py`, `state.py`,
+`user_agent.py`, `scoring_agent.py`, `explanation_agent.py`, `ask.py`,
+`live_graph.py`, `docs/에이전트_설계.md`, `docs/멀티에이전트_아키텍처.md`).
+합성 고객 생성기(`analysis/generate_synthetic_customers.py`)와 `data/synthetic/`도
+같은 날 지웠습니다. 세그먼트 설계를 처음부터 다시 하기로 해서, 옛 가정이 박힌
+코드가 남아 있으면 새 설계를 끌어당기기 때문입니다. 필요하면 git 이력에서
+되살릴 수 있습니다.
 
-한때 `pipeline/`으로 옮겼다가 되돌렸습니다. `crawl_*.py` / `merge_plans.py` /
-`refresh_plans.py` / `schema_drift.py`는 모두 `src/`에서 계속 돌아갑니다
-(README.md 참고). 데이터 갱신은 추천 그래프에 연결하지 말고 **배치로 따로**
-돌리세요 — 요청 한 번이 34분짜리가 됩니다.
+**수집 파이프라인**은 한때 `pipeline/`으로 옮겼다가 되돌렸습니다.
+`crawl_*.py` / `merge_plans.py` / `refresh_plans.py` / `schema_drift.py`는 모두
+`src/`에서 계속 돌아갑니다(README.md 참고). 데이터 갱신은 추천 흐름에 연결하지
+말고 **배치로 따로** 돌리세요 — 요청 한 번이 34분짜리가 됩니다.
