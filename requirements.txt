@@ -3,10 +3,18 @@ requests
 beautifulsoup4
 selenium          # LG U+ 수집에만 필요 (목록이 SPA라 브라우저가 있어야 보임)
 
-# 원문 대조 진단(src/agents/data_verify.py)
+# 추천 (src/recommend.py, fair_price.py, make_synthetic.py, compare_methods.py)
+pandas
+scikit-learn
+
+# 에이전트 워크플로(src/graph.py)와 LLM 단계
+#   - profile_input.extract_slots : 자유입력 -> 슬롯
+#   - report.write_report         : 추천 근거 설명
+#   - agents/data_verify.py       : 원문 대조 진단
+# 키가 없으면 이 단계들만 건너뛰고 추천은 그대로 동작한다.
+langgraph
 openai
 python-dotenv
 
 # 아래는 지금 코드가 직접 쓰지 않는다. 되살릴 때 같이 설치한다.
-#   langgraph                    -> 에이전트 그래프 (다시 설계 중)
-#   pandas, matplotlib, seaborn, jupyter -> EDA 노트북(_archive/notebooks/)
+#   matplotlib, seaborn, jupyter -> EDA 노트북(_archive/notebooks/)

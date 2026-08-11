@@ -138,8 +138,60 @@ def build(verbose: bool = True) -> tuple[list[dict], list[dict], Counter, list[d
     return plans, benefits, dropped, all_rows
 
 
+def fill_undiscounted_fee(plans: list[dict]) -> int:
+    """할인이 없는 요금제의 `discounted_fee`를 정가로 채운다. 채운 행 수를 돌려준다.
+
+    `discounted_fee`는 명세서상 **실제 내는 돈**이고, 통신사 유형을 함께 비교할 때
+    기준이 되는 컬럼이다. 그런데 할인 자체가 없는 온라인 전용(KT 요고 13 · LGU+
+    너겟 46 · SKT 다이렉트 31)은 이 값이 비어 있었다. "할인 없음"을 "가격 모름"과
+    같은 모양으로 둔 셈이라, 가격 결측을 거르는 쪽에서는 3사 최저가 라인 90개가
+    통째로 사라진다.
+
+    할인 여부는 `discount_type`(빈값)과 `monthly_fee == discounted_fee`로 여전히
+    구분된다. docs/수정이력.md 38번.
+    """
+    filled = 0
+    for p in plans:
+        if not str(p.get("discounted_fee", "")).strip() and str(p.get("monthly_fee", "")).strip():
+            p["discounted_fee"] = p["monthly_fee"]
+            filled += 1
+    return filled
+
+
+def borrow_age_condition(plans: list[dict]) -> int:
+    """모요가 안 적은 가입 연령을, 같은 통신사·같은 이름의 3사 수집분에서 가져온다.
+
+    모요는 3사 자사상품도 함께 싣는데 **가입 연령을 적지 않는다.** SKT `0 청년
+    다이렉트 48`의 경우 SKT 페이지에는 "만 34세 이하 고객님이…"가 있지만 모요
+    상세에는 그 문구가 아예 없다(원본 캐시 확인). 그래서 모요발 행만 있으면
+    40세에게도 청년 요금제가 추천된다.
+
+    이름이 같아도 통신사가 다르면 다른 상품이므로 `host_mno`까지 맞을 때만 쓴다.
+    """
+    def key(p):
+        return (p.get("host_mno", ""), (p.get("plan_name") or "").replace(" ", "").strip())
+
+    known = {key(p): p["age_condition"] for p in plans
+             if str(p.get("age_condition", "")).strip() and not str(p["plan_id"]).isdigit()}
+
+    borrowed = 0
+    for p in plans:
+        if str(p["plan_id"]).isdigit() and not str(p.get("age_condition", "")).strip():
+            found = known.get(key(p))
+            if found:
+                p["age_condition"] = found
+                borrowed += 1
+    return borrowed
+
+
 def main():
     plans, benefits, dropped, _all_rows = build()
+    borrowed = borrow_age_condition(plans)
+    if borrowed:
+        print(f"  모요발 {borrowed}행의 가입 연령을 3사 수집분에서 채움")
+    filled = fill_undiscounted_fee(plans)
+    if filled:
+        print(f"  할인 없는 요금제 {filled}행의 discounted_fee를 정가로 채움")
     _write(plans, PLAN_COLUMNS, PLAN_OUT)
     _write(benefits, BENEFIT_COLUMNS, BENEFIT_OUT)
 
