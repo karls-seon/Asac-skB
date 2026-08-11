@@ -17,3 +17,12 @@ data/review/parse_coverage.json
 
 __pycache__/
 *.pyc
+
+# 프런트엔드
+web/node_modules/
+web/dist/
+
+# 합성 고객 - make_synthetic.py가 고정 시드로 다시 만든다 (3.3MB)
+data/synthetic/
+# KISDI 원자료 - 신청해서 받은 자료라 재배포하지 않는다 (7.7MB)
+data/external/
