@@ -31,7 +31,8 @@ CARD_COLUMNS = [
     "discounted_fee", "data_gb", "data_unlimited", "data_throttle_speed",
     "daily_data_gb", "voice_unlimited", "sms_unlimited", "network_gen",
     "age_condition", "ott_options", "discount_period_months", "signup_channel",
-    "value_score", "fair_price", "savings", "ott_matched", "source_url",
+    "value_score", "fair_price", "savings", "ott_matched", "benefit_monthly",
+    "gift_benefit", "source_url",
 ]
 
 
@@ -116,6 +117,10 @@ def check() -> None:
                                      "mvno_ok": False, "current_carrier": "SKT"}).json()
     assert all(not (p["signup_channel"] == "SKT 공식몰" and p["plan_name"].count("다이렉트"))
                for p in skt["plans"]), skt["plans"]
+
+    # 사은품 월 환산액이 실려 나간다. 점수에는 안 들어가고 표시용이다.
+    gift = c.post("/recommend", json={"budget": 30_000, "data_band": "5~20GB"}).json()
+    assert any(p.get("benefit_monthly") for p in gift["plans"]), gift["plans"][0]
 
     # 가입 채널이 카드마다 실려 나간다. 같은 요금제가 채널에 따라 값이 다르다.
     assert all(p["signup_channel"] for p in r["plans"]), r["plans"][0]

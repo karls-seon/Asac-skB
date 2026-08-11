@@ -69,6 +69,55 @@ def ott_prices() -> dict[str, int]:
     return {name: int(v) for name, v in priced.groupby("benefit_name")["v"].median().items()}
 
 
+# 일회성 사은품을 월 요금과 더하려면 몇 개월로 나눌지 정해야 한다. 알뜰폰 사용자가
+# 6개월 주기로 갈아탄다는 전제와, 프로모션 할인기간 최빈값이 7개월인 것에 맞춘다.
+BENEFIT_HORIZON_MONTHS = 6
+
+# 값을 세는 혜택. `사은품/페이백`만 쓴다 - 상품권·네이버페이·현금성이라 누구에게나
+# 같은 값이다. OTT는 사용자가 원한다고 답했을 때만 `ott_bonus()`가 따로 세고(중복
+# 방지), 스마트기기는 워치·태블릿이 있어야 값이 생기므로 빼둔다.
+CASH_BENEFIT_CATEGORY = "사은품/페이백"
+
+_MONTHS_RE = re.compile(r"(\d+)\s*개월")
+
+# 조건이 붙은 혜택(111행)은 세지 않는다. `갤럭시 자급제 이벤트 신세계상품권 10만원`은
+# 단말을 사야, `팝테일 가입·인증`은 다른 서비스에 가입해야 받는다. 요금제를 고른
+# 것만으로 생기는 값이 아니라서, 넣으면 조건을 못 채운 사람에게 부풀린 값을 보인다.
+_CONDITIONAL_RE = re.compile(r"자급제|이벤트|구매|기기|단말|결합|카드|제휴|인증|가입 시")
+
+
+@functools.lru_cache(maxsize=1)
+def cash_benefit_monthly() -> dict[str, int]:
+    """plan_id -> 월로 환산한 사은품 가치(원).
+
+    `benefit_value_won`이 총액인지 월액인지가 **행마다 다르다.** 개월 수가 적힌
+    296행을 이름 속 금액과 대조해 보면 190행은 월액, 36행은 총액이었다.
+
+        네이버페이 매달 2.5만원 페이백 (12개월)   300,000  <- 총액
+        올리브영 12개월간 매월 5,000원 상품권       5,000  <- 월액
+        S-머니3만원(5천원X6개월)                 30,000  <- 총액이지만 이름에
+                                                          총액·월액이 같이 있다
+
+    마지막 형태 때문에 이름 파싱만으로는 못 가른다. 그래서 **총액으로 보고 기간으로
+    나눈다.** 월액인 행은 값이 실제보다 작게 잡히지만, 반대로 틀리면 39만원짜리
+    가짜 혜택이 1위를 차지한다. 부풀리는 쪽보다 낮춰 잡는 쪽이 안전하다.
+
+    ponytail: 월액 190행을 과소평가한다. 사이트가 총액·월액을 구분해 적기 시작하면
+    그때 정확히 가른다.
+    """
+    b = pd.read_csv(final_path("통신요금제_혜택상세_최종.csv"), encoding="utf-8-sig")
+    b = b[b["benefit_category"].eq(CASH_BENEFIT_CATEGORY)].copy()
+    b["v"] = pd.to_numeric(b["benefit_value_won"], errors="coerce")
+    b = b[b["v"] > 0]
+    b = b[~b["benefit_name"].str.contains(_CONDITIONAL_RE, na=False)]
+
+    months = b["benefit_name"].str.extract(_MONTHS_RE, expand=False).astype(float)
+    # 기간이 없으면 한 번 받는 사은품이므로 갈아타기 주기로 나눈다.
+    spread = months.fillna(BENEFIT_HORIZON_MONTHS).clip(lower=BENEFIT_HORIZON_MONTHS)
+    total = (b["v"] / spread).groupby(b["plan_id"].astype(str)).sum().round()
+    return {pid: int(v) for pid, v in total.items()}
+
+
 @functools.lru_cache(maxsize=1)
 def _ott_benefits() -> pd.DataFrame:
     """OTT/구독 혜택 행. `plan_id`로 요금제와 이어진다."""
@@ -229,7 +278,7 @@ def recommend(
         df = df[df["age_condition"].map(lambda c: _age_ok(c, age))]
 
     if df.empty:
-        return df.assign(ott_matched=[], score=[])
+        return df.assign(ott_matched=[], benefit_monthly=[], score=[])
 
     matched = df["ott_options"].map(lambda o: _ott_matches(o, ott_want))
 
@@ -239,14 +288,24 @@ def recommend(
         keep = matched.str.len() > 0
         df, matched = df[keep], matched[keep]
         if df.empty:
-            return df.assign(ott_matched=[], score=[])
+            return df.assign(ott_matched=[], benefit_monthly=[], score=[])
 
     # 가점은 사이트가 적어 둔 구독 가치만큼. 등급별로 다르므로 요금제마다 따로 본다.
     bonus = pd.Series(
         [ott_bonus(pid, ms) for pid, ms in zip(df["plan_id"], matched)],
         index=df.index,
     )
-    df = df.assign(ott_matched=matched, score=df["discounted_fee"] - bonus)
+    # 사은품·페이백은 **점수에서 빼지 않는다.** 금액이 붙은 1,148행이 전부 모요인데,
+    # 모요의 `discounted_fee`는 이미 페이백을 뺀 체감가다(crawl_moyo.py 참고 -
+    # LGU+ 너겟49가 공식몰 49,000원, 모요 7,000원인 게 42,000원 페이백을 미리
+    # 반영한 값이다). 또 빼면 같은 돈을 두 번 세는 것이고, 실제로 그렇게 넣었다가
+    # 상위권이 페이백 큰 요금제로 뒤집혔다. 값은 화면에 보여주기 위해 싣기만 한다.
+    cash = df["plan_id"].astype(str).map(cash_benefit_monthly()).fillna(0)
+    df = df.assign(
+        ott_matched=matched,
+        benefit_monthly=cash.astype(int),
+        score=df["discounted_fee"] - bonus,
+    )
     # 점수가 같으면 스펙 대비 싼 쪽(회귀 가성비 점수)을 위로. 가격·스펙이 똑같아
     # 순서를 매길 근거가 없던 동점을 여기서 가른다. `value_score`가 안 붙어 있으면
     # 그 단계만 건너뛴다 - fair_price.attach_value_score()로 붙인다.
@@ -365,7 +424,7 @@ def check() -> None:
     r = recommend(plans, budget=30_000, data_gb=20)
     assert len(r) == 5
     assert (r["discounted_fee"] <= 30_000).all()
-    assert (r["data_unlimited"].eq(True) | r["data_gb"].ge(20)).all()
+    assert (full_speed_unlimited(r) | usable_gb(r).ge(20)).all()
 
     # 조건을 좁히면 후보도 좁아진다.
     assert len(recommend(plans, budget=30_000, mvno_ok=False, top_n=999)) < len(
@@ -461,8 +520,19 @@ def check() -> None:
 
     # 큰 요금제도 싸면 올라온다. 50GB를 요구했는데 100GB짜리가 1위여도 정상이다.
     fifty = recommend(plans, budget=30_000, data_gb=50)
-    assert (fifty["data_gb"] >= 50).all()
-    assert (fifty["data_gb"] > 50).any(), "요구량보다 큰 요금제가 하나도 안 올라왔다"
+    assert (full_speed_unlimited(fifty) | usable_gb(fifty).ge(50)).all()
+    assert usable_gb(fifty).gt(50).any(), "요구량보다 큰 요금제가 하나도 안 올라왔다"
+
+    # 사은품·페이백은 화면에 싣되 **점수는 건드리지 않는다.** 모요 가격이 이미
+    # 페이백을 반영한 값이라, 빼면 같은 돈을 두 번 센다.
+    cash = cash_benefit_monthly()
+    assert len(cash) > 500, len(cash)
+    withb = recommend(plans, budget=30_000, top_n=99_999)
+    rich = withb[withb["benefit_monthly"] > 0]
+    assert len(rich), "혜택 금액이 실려 나가지 않는다"
+    assert (rich["score"] == rich["discounted_fee"]).all(), "사은품이 점수에 섞였다"
+    # 금액이 붙은 사은품은 전부 모요 출처다. 다른 채널에서 나오면 전제가 깨진 것이다.
+    assert rich["signup_channel"].eq("모요").all(), set(rich["signup_channel"])
 
     # 원하는 OTT가 예산 안에 없으면 그 사실과 최저가를 알려준다.
     want = ("넷플릭스",)

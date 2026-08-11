@@ -242,6 +242,14 @@ export default function App() {
                   <li>문자 {p.sms_unlimited ? "무제한" : "기본"}</li>
                   {p.ott_matched?.length > 0 && <li className="ott">{p.ott_matched.join(", ")} 제공</li>}
                 </ul>
+                {/* 사은품·페이백은 이미 이 가격에 반영돼 있다. 얼마짜리가
+                    반영된 건지 보여주되, 요금에서 또 빼지는 않는다. */}
+                {p.benefit_monthly > 0 && (
+                  <p className="gift">
+                    사은품·페이백 <b>월 {won(p.benefit_monthly)}</b> 상당이 위 요금에 반영됨
+                    {p.gift_benefit && <em>{p.gift_benefit.split(" | ")[0]}</em>}
+                  </p>
+                )}
                 {p.discount_period_months && (
                   <p className="caution">프로모션 할인 {p.discount_period_months}개월 — 이후 요금이 오를 수 있습니다</p>
                 )}
