@@ -126,6 +126,11 @@ PLAN_COLUMNS = [
     "smart_device_benefit",                             # 스마트기기 회선 혜택
     "extra_data_benefit",                                # 추가/공유 데이터 혜택
     "gift_benefit",                                       # 사은품/페이백
+    # --- 참고 ---
+    # 목록 카드의 "N명이 선택" 인기 지표. 지금은 모요만 채운다(3사 사이트에는
+    # 이런 표시 자체가 없음). "10+명이 선택"(하한 표기)도 정수로 그대로
+    # 저장한다 - "최소 10명"이라는 뜻이라 값이 실제보다 낮게 잡힐 수 있다.
+    "subscriber_count",
     # --- 출처 ---
     "source_url",
     "crawled_at",

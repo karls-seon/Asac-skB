@@ -104,6 +104,8 @@ def _get(url: str) -> str:
     raise last_error
 
 
+_SUBSCRIBER_RE = re.compile(r"([\d,]+)\+?\s*명이\s*선택")
+
 _KRW_RE = re.compile(r"([\d,.]+)\s*(만|천)?\s*원")
 _KRW_UNIT = {None: 1, "천": 1_000, "만": 10_000}
 
@@ -515,6 +517,11 @@ def parse_card_only(a_tag) -> dict | None:
     sms_text = sms_m.group(1) if sms_m else ""
     sms_unlimited = sms_text == "무제한"
 
+        # "38,285명이 선택" 또는(인기 낮은 요금제는) "10+명이 선택"(하한 표기).
+    # "+"는 캡처하지 않으므로 to_won이 그대로 정수로 바꾼다("10+" -> 10).
+    select_m = _SUBSCRIBER_RE.search(card_text)
+    subscriber_count = to_won(select_m.group(1)) if select_m else None
+
     # \S+망 처럼 느슨하게 잡으면 "5G망" 같은 문구까지 통신사로 잘못 잡혀서 3사만 매칭
     net_m = re.search(r"(KT|SKT|LG\s*U\+)\s*망", card_text)
     host_mno = HOST_BRAND_MAP.get(net_m.group(1), net_m.group(1)) if net_m else ""
@@ -586,12 +593,18 @@ def parse_card_only(a_tag) -> dict | None:
         "discounted_fee": promo_fee,        # 프로모션 적용된 현재 월 납부액
         "discount_type": discount_type,
         "discount_period_months": discount_period,
+        "subscriber_count": subscriber_count if subscriber_count is not None else "",
         "source_url": DETAIL_URL.format(plan_id=plan_id),
     }
 
 
 # 갱신 판단에 쓸 지문. 목록 카드에서 나오는 값만 넣는다(상세 페이지 값은 제외).
 # 이 값들이 그대로면 상세 페이지도 안 바뀌었다고 보고 재수집을 건너뛴다.
+#
+# subscriber_count는 일부러 뺀다. 요금제 스펙이 그대로여도 "N명이 선택"은
+# 매일 바뀌므로, 넣으면 사실상 전체 요금제가 매번 "변경됨"으로 잡혀 상세
+# 페이지를 매일 전부 다시 받게 된다 - 이 모듈이 존재하는 이유(상세 2,200여
+# 건을 스펙이 바뀐 것만 다시 받기)가 무력화된다.
 _FINGERPRINT_FIELDS = (
     "plan_name", "host_mno", "network_gen",
     "data_gb", "data_unlimited", "data_throttle_speed", "daily_data_gb",
@@ -638,6 +651,7 @@ def parse_card(a_tag, now: str):
 def parse_all() -> tuple[list[dict], list[dict]]:
     now = datetime.now(timezone.utc).isoformat()
     plans, benefits, seen = [], [], set()
+    by_id = {}
     files = sorted(
         (f for f in os.listdir(CACHE_DIR) if f.startswith("page_")),
         key=lambda f: int(re.search(r"\d+", f).group()),
@@ -649,11 +663,22 @@ def parse_all() -> tuple[list[dict], list[dict]]:
             # parse_card()가 내부에서 parse_detail()로 상세 페이지 파일 I/O까지
             # 하기 때문에, 이미 처리한 plan_id면 parse_card 호출 자체를 건너뛴다.
             plan_id_m = re.search(r"/plans/(\d+)", a.get("href", ""))
-            if plan_id_m and plan_id_m.group(1) in seen:
+            pid = plan_id_m.group(1) if plan_id_m else None
+            if pid and pid in seen:
+                # 매일 바뀌는 "지금 HOT" 배너는 같은 요금제를 페이지마다 한 번씩
+                # 더 보여주는데, 그 카드에는 "N명이 선택"이 없다. 먼저 파싱된
+                # 쪽이 하필 배너면 subscriber_count가 영영 빈값으로 남는다.
+                # 상세 페이지까지 다시 열 필요는 없으니 가벼운 카드만 다시 읽어
+                # 비어 있으면 채운다.
+                if pid in by_id and not by_id[pid].get("subscriber_count"):
+                    card = parse_card_only(a)
+                    if card and card.get("subscriber_count"):
+                        by_id[pid]["subscriber_count"] = card["subscriber_count"]
                 continue
             plan, plan_benefits = parse_card(a, now)
             if plan and plan["plan_id"] not in seen:
                 seen.add(plan["plan_id"])
+                by_id[plan["plan_id"]] = plan
                 plans.append(plan)
                 benefits.extend(plan_benefits)
     return plans, benefits
