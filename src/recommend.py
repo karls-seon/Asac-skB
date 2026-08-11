@@ -420,7 +420,11 @@ def check() -> None:
     want = ("넷플릭스",)
     cheap = recommend(plans, budget=30_000, data_gb=20, ott_want=want, top_n=99_999)
     note = ott_note(plans, cheap, want, budget=30_000)
-    assert note and "넷플릭스" in note and "66,750원" in note, note
+    # 최저가를 값으로 박지 않는다. 요금제가 늘면 바뀐다(너겟이 후보에 들어오며
+    # 66,750원 -> 59,000원이 됐다). 데이터에서 계산한 값과 맞는지만 본다.
+    has_nf = plans[plans["ott_options"].map(lambda o: bool(_ott_matches(o, want)))]
+    cheapest = int(has_nf["discounted_fee"].min())
+    assert note and "넷플릭스" in note and f"{cheapest:,}원" in note, note
 
     # 상위 5개만 넘기면 6위에 있는 것도 "없다"고 말한다. 전체 후보를 넘겨야 한다.
     top5 = recommend(plans, budget=90_000, data_unlimited=True, ott_want=("티빙",))

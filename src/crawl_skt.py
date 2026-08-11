@@ -82,12 +82,26 @@ ALL_CATEGORIES = {
 # 같아서 포함한다. 반면 3G·선불폰은 종량 과금이고 스마트기기는 보조회선이라 뺀다.
 #   스마트기기 : 워치·태블릿·함께쓰기/투넘버
 #   다이렉트  : 온라인 전용 채널 상품
-COLLECTED_CATEGORIES = {"베스트", "라이트"}
+# "다이렉트"는 SKT의 온라인 전용 라인이다(0 청년 다이렉트 34/48/55/62/69 등 31개).
+# KT는 "온라인전용(요고)"를, LGU+는 "너겟"을 수집하는데 SKT만 빠져 있어서 3사
+# 비교가 비대칭이었다. 모요를 통해 일부가 들어오긴 했지만 모요는 가입 연령을
+# 적지 않아 `만 34세 이하` 같은 조건이 통째로 유실됐다(docs/수정이력.md 38번).
+COLLECTED_CATEGORIES = {"베스트", "라이트", "다이렉트"}
 # (카테고리, 그룹) 단위로 추가 수집할 것. 카테고리 전체를 받기엔 섞임이 심한 경우.
 COLLECTED_GROUPS = {
     ("전용", "연령특화"),      # ZEM플랜 3 · 주말엔 팅 2 · 5G 시니어 2 · T끼리 어르신
     ("전용", "기본/표준"),     # T플랜 세이브 · 뉴 T끼리 맞춤형 · 표준요금제
 }
+
+
+def _selective_discount(item: dict, fee: int) -> str | int:
+    """선택약정 25% 적용가. 할인 대상이 아니면 빈값.
+
+    SKT는 할인 대상이 아닌 요금제에 `selAgrmtAplyMfixAmt = "0"`을 준다. "공짜"가
+    아니라 "해당 없음"이다. 정가보다 크거나 같은 값이 오는 경우도 할인이 아니다.
+    """
+    sel = _to_int(item.get("selAgrmtAplyMfixAmt"))
+    return sel if sel and fee and sel < fee else ""
 
 
 def _in_scope(category: str, group: str) -> bool:
@@ -568,8 +582,12 @@ def parse_all() -> tuple[list[dict], list[dict]]:
                 "sms_unlimited": sms_unlimited,
                 "sms_count": "" if sms_unlimited else _to_int(re.sub(r"[^\d]", "", sms_text) or "") or "",
                 "monthly_fee": fee,
-                "discounted_fee": _to_int(item.get("selAgrmtAplyMfixAmt")),
-                "discount_type": "선택약정 25% 할인",
+                # 온라인전용(다이렉트)은 무약정 자급제형이라 선택약정 할인 대상이
+                # 아니고, API가 `selAgrmtAplyMfixAmt`에 **0을 준다**. 그대로 쓰면
+                # "0원 요금제" 31개가 생겨 추천 맨 위를 차지한다. KT 요고·LGU+
+                # 너겟도 같은 이유로 비워 둔다(crawl_kt.py의 is_online_only 분기).
+                "discounted_fee": _selective_discount(item, fee),
+                "discount_type": "선택약정 25% 할인" if _selective_discount(item, fee) else "",
                 "discount_period_months": "",
                 "source_url": source_url,
                 "crawled_at": now,
