@@ -42,6 +42,11 @@ USAGE_HINTS: dict[str, str] = {
 
 MAX_BUDGET = 200_000
 
+# 지금 쓰는 통신사. 3사 온라인 전용(요고·너겟·다이렉트)은 같은 통신사에서 기기변경
+# 으로 못 옮기고 번호이동·신규만 되기 때문에 받는다. 알뜰폰 사용자는 어디로든
+# 번호이동이라 제한이 없어서 값 하나로 묶는다.
+CARRIERS = ("SKT", "KT", "LGU+", "알뜰폰")
+
 
 class InputError(ValueError):
     """사용자에게 그대로 보여줄 수 있는 입력 오류."""
@@ -69,6 +74,7 @@ def build_query(
     voice_unlimited: bool = False,
     sms_unlimited: bool = False,
     mvno_ok: bool = True,
+    current_carrier: str | None = None,
     age: int | None = None,
     ott_want: tuple[str, ...] = (),
     ott_required: bool = False,
@@ -95,6 +101,9 @@ def build_query(
     if age is not None and not (0 < age < 120):
         raise InputError("나이를 다시 확인해 주세요.")
 
+    if current_carrier is not None and current_carrier not in CARRIERS:
+        raise InputError(f"지금 쓰는 통신사를 {' / '.join(CARRIERS)} 중에서 골라 주세요.")
+
     # 문자열을 그대로 tuple()에 넣으면 글자 단위로 쪼개진다("넷플릭스" -> 넷,플,릭,스).
     # 조용히 깨지는 대신 여기서 막는다.
     if isinstance(ott_want, str):
@@ -113,6 +122,8 @@ def build_query(
         "voice_unlimited": bool(voice_unlimited),
         "sms_unlimited": bool(sms_unlimited),
         "mvno_ok": bool(mvno_ok),
+        # 알뜰폰 사용자는 3사 어디로든 번호이동이라 막을 게 없다. 3사일 때만 넘긴다.
+        "current_carrier": current_carrier if current_carrier in ("SKT", "KT", "LGU+") else None,
         "age": age,
         "ott_want": tuple(ott_want),
         # 결과 화면의 "이 OTT 있는 것만 보기" 토글. 기본은 꺼져 있다 - 켜면
@@ -136,6 +147,7 @@ SLOTS = {
     "voice_unlimited": "통화를 많이 해서 무제한이 필요하면 true.",
     "sms_unlimited": "문자를 많이 보내면 true.",
     "mvno_ok": "알뜰폰도 괜찮으면 true, 통신3사만 원하면 false.",
+    "current_carrier": f"지금 쓰는 통신사. {list(CARRIERS)} 중 하나. 말 안 했으면 생략.",
     "current_fee": "지금 매달 내는 통신요금(원). 신규 가입이면 생략.",
     "age": "나이(만). 말하지 않았으면 생략.",
     "ott_want": "원하는 OTT 이름 목록. 예: [\"넷플릭스\"]",
@@ -290,7 +302,8 @@ def update_slots(slots: dict, text: str, extract=extract_slots) -> dict:
 def to_query(slots: dict) -> dict:
     """모인 슬롯을 `recommend()` 인자로. 필수가 비면 InputError."""
     allowed = ("budget", "data_band", "usage_hint", "voice_unlimited",
-               "sms_unlimited", "mvno_ok", "age", "ott_want", "ott_required", "current_fee")
+               "sms_unlimited", "mvno_ok", "current_carrier", "age", "ott_want",
+               "ott_required", "current_fee")
     kw = {k: v for k, v in slots.items() if k in allowed and v is not None}
     # 필수 슬롯이 비었으면 크래시나 일반 안내문 대신 **다음에 물을 그 문장**을 준다.
     # "모르겠어"라고 답한 사람에게는 구간 목록이 아니라 습관 질문이 나가야 한다.
@@ -415,7 +428,8 @@ def _check_chat() -> None:
     assert q == {
         "budget": 30_000, "data_gb": 50.0, "data_unlimited": False,
         "voice_unlimited": False, "sms_unlimited": False,
-        "mvno_ok": False, "age": None, "ott_want": (), "ott_required": False, "current_fee": None,
+        "mvno_ok": False, "current_carrier": None, "age": None, "ott_want": (),
+        "ott_required": False, "current_fee": None,
     }, q
 
     # 필수가 비면 추천으로 넘어가지 않는다. 빈 슬롯도 크래시가 아니라 InputError다.

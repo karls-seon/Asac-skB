@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 
 const won = (n) => (n == null ? "-" : `${Number(n).toLocaleString()}원`);
 
+// "안 골랐다"(빈 문자열)와 "모르겠다"를 구분해야 한다. 전자는 문장으로 채우거나
+// 서버가 되묻고, 후자는 습관 질문으로 넘어간다.
+const UNKNOWN = "__unknown__";
+
 function dataLabel(p) {
   if (p.data_unlimited) {
     return p.data_throttle_speed ? `무제한 (소진 후 ${p.data_throttle_speed})` : "무제한";
@@ -13,13 +17,17 @@ function dataLabel(p) {
 
 export default function App() {
   const [opts, setOpts] = useState(null);
+  // 기본값을 넣어 두면 사용자가 손대지 않은 값까지 서버로 가고, 폼이 자유입력보다
+  // 우선이라 문장이 통째로 무시된다("9만원 무제한"이라고 써도 3만원·50GB가 됨).
+  // 안 고른 칸은 비워 두고, 문장이 채우거나 서버가 되묻게 한다.
   const [form, setForm] = useState({
-    budget: 30000,
-    data_band: "20~50GB",
+    budget: "",
+    data_band: "",
     usage_hint: "",
     voice_unlimited: false,
     sms_unlimited: false,
     mvno_ok: true,
+    current_carrier: "",
     age: "",
     ott_want: [],
     ott_required: false,
@@ -51,12 +59,20 @@ export default function App() {
     e?.preventDefault();
     setBusy(true);
     setErr(null);
-    // 빈 문자열은 "안 골랐다"는 뜻이라 보내지 않는다. 서버가 기본값을 쓴다.
+    // 안 고른 값은 보내지 않는다. 보내면 서버에서 자유입력 문장을 덮어써서
+    // "9만원 무제한"이라고 써도 폼 기본값이 이긴다.
     const body = { text };
     for (const [k, v] of Object.entries(form)) {
       if (v === "" || v == null) continue;
       if (Array.isArray(v) && v.length === 0) continue;
-      body[k] = k === "age" || k === "current_fee" || k === "budget" ? Number(v) : v;
+      // 체크 안 한 상자는 "아니다"가 아니라 "말 안 했다"이다.
+      if (v === false && k !== "mvno_ok") continue;
+      // 알뜰폰만 반대다. 기본이 "허용"이라 그대로 보내면 문장의 "알뜰폰 말고"를
+      // 덮어버린다. 사용자가 상자를 체크했을 때(=false)만 보낸다.
+      if (k === "mvno_ok" && v === true) continue;
+      // 데이터 구간을 "모르겠어요"로 둔 경우엔 습관 답만 보낸다.
+      if (k === "data_band" && v === UNKNOWN) continue;
+      body[k] = ["age", "current_fee", "budget"].includes(k) ? Number(v) : v;
     }
     try {
       const r = await fetch("/api/recommend", {
@@ -96,18 +112,20 @@ export default function App() {
           <label className="field">
             <span>월 예산</span>
             <input type="number" min="1000" step="1000" value={form.budget}
-                   onChange={(e) => set("budget", e.target.value)} required />
+                   placeholder="예: 30000"
+                   onChange={(e) => set("budget", e.target.value)} />
           </label>
 
           <label className="field">
             <span>데이터 사용량</span>
             <select value={form.data_band} onChange={(e) => set("data_band", e.target.value)}>
+              <option value="">고르지 않음</option>
               {opts?.data_bands.map((b) => <option key={b} value={b}>{b}</option>)}
-              <option value="">모르겠어요</option>
+              <option value={UNKNOWN}>모르겠어요</option>
             </select>
           </label>
 
-          {form.data_band === "" && (
+          {form.data_band === UNKNOWN && (
             <label className="field span2">
               <span>평소 습관은 어느 쪽인가요?</span>
               <select value={form.usage_hint} onChange={(e) => set("usage_hint", e.target.value)}>
@@ -116,6 +134,17 @@ export default function App() {
               </select>
             </label>
           )}
+
+          {/* 3사 온라인 전용(요고·너겟·다이렉트)은 같은 통신사에서 기기변경으로
+              못 옮긴다. 지금 쓰는 곳을 알아야 못 가는 걸 안 보여줄 수 있다. */}
+          <label className="field">
+            <span>지금 쓰는 통신사 <em>선택</em></span>
+            <select value={form.current_carrier}
+                    onChange={(e) => set("current_carrier", e.target.value)}>
+              <option value="">고르지 않음</option>
+              {opts?.carriers.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
 
           <label className="field">
             <span>나이 <em>선택</em></span>
@@ -193,8 +222,20 @@ export default function App() {
                 <p className="who">
                   {p.carrier_type === "MVNO" ? `알뜰폰 · ${p.mvno_brand ?? ""} (${p.host_mno}망)` : `${p.host_mno}`}
                   {p.network_gen ? ` · ${p.network_gen}` : ""}
-                  {p.age_condition ? ` · ${p.age_condition}` : ""}
+                  {p.age_condition && <span className="tag age">{p.age_condition}만 가입</span>}
                 </p>
+                {p.signup_channel && (
+                  <p className="channel">
+                    <span className={p.signup_channel === "모요" ? "tag via" : "tag direct"}>
+                      {p.signup_channel}에서 가입
+                    </span>
+                    {/* 통신3사 요금제를 모요로 가입하는 경우. 같은 이름이라도
+                        공식몰과 값이 다르다 (너겟49: 모요 7,000원 / 공식몰 49,000원). */}
+                    {p.signup_channel === "모요" && p.carrier_type === "MNO" && (
+                      <em>통신사 공식몰과 값이 다를 수 있습니다</em>
+                    )}
+                  </p>
+                )}
                 <ul className="specs">
                   <li>데이터 {dataLabel(p)}</li>
                   <li>통화 {p.voice_unlimited ? "무제한" : "기본"}</li>

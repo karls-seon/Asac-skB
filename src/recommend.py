@@ -28,6 +28,17 @@ DAYS_PER_MONTH = 30
 _AGE_RE = re.compile(r"만\s*(\d+)\s*세\s*(이하|미만|이상|초과)")
 
 
+# 가입하는 곳. 같은 요금제가 채널에 따라 가격이 다르다 - LGU+ `너겟49`는 공식몰
+# 49,000원인데 모요를 통하면 프로모션가 7,000원이다. 둘 다 실재하는 조건이라
+# 하나로 합치지 않고, 대신 어디서 가입하는 건지 결과에 적는다.
+SIGNUP_CHANNELS = {
+    "www.moyoplan.com": "모요",
+    "product.kt.com": "KT 공식몰",
+    "www.tworld.co.kr": "SKT 공식몰",
+    "www.lguplus.com": "LG U+ 공식몰",
+}
+
+
 def load_plans() -> pd.DataFrame:
     """최종 CSV를 읽고 숫자 컬럼만 숫자로 바꾼다."""
     df = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
@@ -35,6 +46,11 @@ def load_plans() -> pd.DataFrame:
                 "daily_data_gb", "tethering_gb"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # CSV에는 없는 파생값이라 읽을 때 만든다. 스키마를 늘리면 크롤러 4개를 다시
+    # 돌려야 하는데, source_url만 보면 알 수 있는 값이라 그럴 이유가 없다.
+    domain = df["source_url"].fillna("").str.extract(r"https?://([^/]+)", expand=False)
+    df["signup_channel"] = domain.map(SIGNUP_CHANNELS).fillna("")
     return df
 
 
@@ -106,6 +122,23 @@ def _one_ott_value(name: str, prices: dict[str, int]) -> int:
     return 0 if "할인" in name else OTT_BONUS_KRW
 
 
+def blocked_by_carrier(df: pd.DataFrame, current_carrier: str) -> pd.Series:
+    """지금 쓰는 통신사 때문에 가입할 수 없는 요금제인가.
+
+    3사의 온라인 전용(KT 요고 26 · LGU+ 너겟 50 · SKT 다이렉트 59)은 **번호이동이나
+    신규 가입으로만** 받는다. 이미 그 통신사를 쓰고 있으면 기기변경으로 못 옮긴다.
+    모요가 45행에 그대로 적어 뒀다 - "이미 SKT 요금제를 쓰고 있다면 이 요금제를
+    가입할 수 없어요". 3사 자사 페이지에는 그 문구가 없어서 90행은 비어 있지만,
+    같은 상품이므로 규칙으로 판단한다.
+
+    알뜰폰은 대상이 아니다. 알뜰폰 사용자가 3사 온라인 전용으로 가는 건 번호이동이라
+    막히지 않고, 알뜰폰끼리 옮기는 것도 제한이 없다.
+    """
+    return (df["is_online_only"].eq(True)
+            & df["carrier_type"].eq("MNO")
+            & df["host_mno"].eq(current_carrier))
+
+
 def usable_gb(df: pd.DataFrame) -> pd.Series:
     """월에 온전한 속도로 쓸 수 있는 데이터량. 판단이 안 되면 NaN.
 
@@ -161,6 +194,7 @@ def recommend(
     voice_unlimited: bool = False,
     sms_unlimited: bool = False,
     mvno_ok: bool = True,
+    current_carrier: str | None = None,
     age: int | None = None,
     ott_want: tuple[str, ...] = (),
     ott_required: bool = False,
@@ -189,6 +223,8 @@ def recommend(
         df = df[df["sms_unlimited"].eq(True)]
     if not mvno_ok:
         df = df[df["carrier_type"].eq("MNO")]
+    if current_carrier:
+        df = df[~blocked_by_carrier(df, current_carrier)]
     if len(df):
         df = df[df["age_condition"].map(lambda c: _age_ok(c, age))]
 
@@ -406,6 +442,18 @@ def check() -> None:
     assert len(daily) > 0
     assert len(recommend(daily, data_gb=30, top_n=999)) > 0, "일 단위 요금제가 전부 탈락"
 
+    # 지금 쓰는 통신사의 온라인 전용은 기기변경으로 못 옮긴다.
+    for carrier in ("SKT", "KT", "LGU+"):
+        got = recommend(plans, budget=90_000, mvno_ok=False,
+                        current_carrier=carrier, top_n=99_999)
+        assert not blocked_by_carrier(got, carrier).any(), carrier
+        # 다른 통신사의 온라인 전용은 번호이동이라 그대로 남는다.
+        others = got[got["is_online_only"].eq(True) & got["carrier_type"].eq("MNO")]
+        assert len(others), f"{carrier} 사용자에게 타사 온라인전용이 하나도 없다"
+    # 안 물어보면 아무것도 빼지 않는다.
+    assert len(recommend(plans, budget=90_000, mvno_ok=False, top_n=99_999)) > len(
+        recommend(plans, budget=90_000, mvno_ok=False, current_carrier="SKT", top_n=99_999))
+
     # 현재 요금을 주면 절감액이 붙고, 안 주면 컬럼 자체가 없다.
     now = recommend(plans, budget=30_000, data_gb=20, current_fee=69_000)
     assert (now["savings"] == 69_000 - now["discounted_fee"]).all()
@@ -443,6 +491,16 @@ def check() -> None:
     assert len(rich) and ott_note(plans, rich, want, budget=100_000) is None
     # OTT를 안 물었으면 아무 말도 하지 않는다.
     assert ott_note(plans, cheap, (), budget=30_000) is None
+
+    # 가입 채널이 모든 행에 붙는다. 같은 요금제가 채널에 따라 가격이 다르므로
+    # 어느 쪽인지 안 보이면 사용자가 왜 두 번 나오는지 알 수 없다.
+    assert plans["signup_channel"].ne("").all(), plans.loc[
+        plans["signup_channel"].eq(""), "source_url"].head(3).tolist()
+    nugget = plans[plans["plan_name"].str.replace(" ", "").eq("너겟49")]
+    assert set(nugget["signup_channel"]) == {"모요", "LG U+ 공식몰"}, set(nugget["signup_channel"])
+    # 모요 쪽이 프로모션가라 더 싸다.
+    by_ch = nugget.set_index("signup_channel")["discounted_fee"]
+    assert by_ch["모요"] < by_ch["LG U+ 공식몰"], by_ch.to_dict()
 
     # 만족할 수 없는 조건이면 빈 결과. 예외를 던지지 않는다.
     assert recommend(plans, budget=100, data_gb=100).empty

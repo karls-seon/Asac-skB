@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from graph import ask_once
-from profile_input import DATA_BANDS, USAGE_HINTS
+from profile_input import CARRIERS, DATA_BANDS, USAGE_HINTS
 from recommend import load_plans
 
 app = FastAPI(title="요금제 추천 API", version="1.0")
@@ -30,7 +30,7 @@ CARD_COLUMNS = [
     "plan_id", "plan_name", "carrier_type", "host_mno", "mvno_brand",
     "discounted_fee", "data_gb", "data_unlimited", "data_throttle_speed",
     "daily_data_gb", "voice_unlimited", "sms_unlimited", "network_gen",
-    "age_condition", "ott_options", "discount_period_months",
+    "age_condition", "ott_options", "discount_period_months", "signup_channel",
     "value_score", "fair_price", "savings", "ott_matched", "source_url",
 ]
 
@@ -43,6 +43,7 @@ class Ask(BaseModel):
     voice_unlimited: bool | None = None
     sms_unlimited: bool | None = None
     mvno_ok: bool | None = None
+    current_carrier: str | None = Field(None, description=f"{list(CARRIERS)} 중 하나")
     age: int | None = None
     ott_want: list[str] | None = None
     ott_required: bool | None = None
@@ -55,7 +56,7 @@ def options() -> dict:
     plans = load_plans()
     otts = sorted({o.strip() for s in plans["ott_options"].dropna() for o in s.split("|")})
     return {"data_bands": list(DATA_BANDS), "usage_hints": list(USAGE_HINTS),
-            "otts": otts, "plan_count": len(plans)}
+            "carriers": list(CARRIERS), "otts": otts, "plan_count": len(plans)}
 
 
 @app.post("/recommend")
@@ -109,6 +110,15 @@ def check() -> None:
                                    "voice_unlimited": True, "sms_unlimited": True,
                                    "mvno_ok": False}).json()
     assert z["dropped"], z
+
+    # 지금 쓰는 통신사를 주면 그 통신사 온라인 전용은 빠진다(기기변경 불가).
+    skt = c.post("/recommend", json={"budget": 90_000, "data_band": "무제한",
+                                     "mvno_ok": False, "current_carrier": "SKT"}).json()
+    assert all(not (p["signup_channel"] == "SKT 공식몰" and p["plan_name"].count("다이렉트"))
+               for p in skt["plans"]), skt["plans"]
+
+    # 가입 채널이 카드마다 실려 나간다. 같은 요금제가 채널에 따라 값이 다르다.
+    assert all(p["signup_channel"] for p in r["plans"]), r["plans"][0]
 
     # 잘못된 입력은 500이 아니라 되물음으로 돌아온다.
     bad = c.post("/recommend", json={"budget": -1, "data_band": "5~20GB"})
