@@ -94,9 +94,14 @@ class SegmentMethod:
         })[SEG_FEATURES]
         self.model = make_pipeline(StandardScaler(), KMeans(K, random_state=SEED, n_init=10))
         self.labels = self.model.fit_predict(x)
+        # `plan_id`는 문자열인데 CSV에서 읽은 `source_plan_id`는 값이 전부 숫자면
+        # int64로 추론된다. 그대로 두면 아래 `isin`이 한 건도 안 맞아 추천이 조용히
+        # 0건이 된다 - 지금 customers.csv는 3사 요금제 코드에 글자가 섞여 있어
+        # object로 읽히지만, 알뜰폰 전용 파일(customers_mvno.csv)은 전부 숫자라
+        # 실제로 터진다.
+        source = customers["source_plan_id"].astype(str)
         self.plans_by_segment = {
-            seg: customers.loc[self.labels == seg, "source_plan_id"]
-            .value_counts().head(TOP_N).index.tolist()
+            seg: source[self.labels == seg].value_counts().head(TOP_N).index.tolist()
             for seg in range(K)
         }
 
