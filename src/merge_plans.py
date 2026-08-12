@@ -135,6 +135,14 @@ def build(verbose: bool = True) -> tuple[list[dict], list[dict], Counter, list[d
         benefits.extend(kept)
         if verbose:
             print(f"  {Path(path).name}: {len(rows)}행 중 {len(kept)}행 유지 ({len(rows) - len(kept)}행 제외)")
+
+    # 후처리는 build() 안에 둔다. main()에만 있었더니 refresh_plans가 build()만
+    # 부르는 경로에서 통째로 빠졌다(discounted_fee 90행·age_condition 14행 결측).
+    borrowed = borrow_age_condition(plans)
+    filled = fill_undiscounted_fee(plans)
+    if verbose:
+        print(f"  모요발 {borrowed}행의 가입 연령을 3사 수집분에서 채움")
+        print(f"  할인 없는 요금제 {filled}행의 discounted_fee를 정가로 채움")
     return plans, benefits, dropped, all_rows
 
 
@@ -186,12 +194,6 @@ def borrow_age_condition(plans: list[dict]) -> int:
 
 def main():
     plans, benefits, dropped, _all_rows = build()
-    borrowed = borrow_age_condition(plans)
-    if borrowed:
-        print(f"  모요발 {borrowed}행의 가입 연령을 3사 수집분에서 채움")
-    filled = fill_undiscounted_fee(plans)
-    if filled:
-        print(f"  할인 없는 요금제 {filled}행의 discounted_fee를 정가로 채움")
     _write(plans, PLAN_COLUMNS, PLAN_OUT)
     _write(benefits, BENEFIT_COLUMNS, BENEFIT_OUT)
 
