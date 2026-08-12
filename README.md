@@ -59,12 +59,14 @@ cd web && npm install && npm run dev     # 프런트  http://localhost:5173
 │   ├── external/           KISDI 원자료 (git에 없음 — 아래 참고)
 │   ├── synthetic/          합성 고객 (git에 없음 — 스크립트가 다시 만듭니다)
 │   └── final/              ★ 최종 CSV — 분석·모델링은 여기만 보면 됩니다
-│       └── history/        갱신 직전 최종본 백업 (날짜별)
-└── docs/
-    ├── 요구사항_정의서.md     타겟 사용자, 기능, 유즈케이스, 화면설계
-    ├── 에이전트_설계.md       노드 구성, 상태 스키마, LLM 제약
-    ├── 컬럼_명세서.md        컬럼 정의, 빈값의 의미, 알려진 한계
-    └── 수정이력.md           고친 데이터 오류와 그 이유
+│       └── history/        갱신 직전 최종본 백업 (git에 없음 — 로컬 되돌리기용)
+├── docs/
+│   ├── 요구사항_정의서.md     타겟 사용자, 기능, 유즈케이스, 화면설계
+│   ├── 에이전트_설계.md       노드 구성, 상태 스키마, LLM 제약
+│   ├── 컬럼_명세서.md        컬럼 정의, 빈값의 의미, 알려진 한계 (합성 데이터 포함)
+│   └── 수정이력.md           고친 데이터 오류와 그 이유
+├── scenario_compare.ipynb  추천 방식 3개 시나리오 비교 + 세그먼트 방식 해부
+└── input_coverage.ipynb    입력 12개가 합성 고객에 다 있는지 + 왕복 검증
 ```
 
 ## 최종 산출물
@@ -176,8 +178,9 @@ pip install -r requirements.txt
 브라우저 없이는 카드가 보이지 않습니다. 나머지 3개 사이트와 모든 `--parse-only`
 실행은 브라우저가 필요 없습니다.
 
-`openai`/`python-dotenv`는 `src/agents/data_verify.py`(원문 대조 진단)에서만 씁니다.
-키가 없으면 이 단계만 건너뛰고 갱신 자체는 정상 동작합니다.
+`openai`/`python-dotenv`는 세 곳에서 씁니다 — `profile_input.py`(자유입력 해석),
+`report.py`(추천 근거 설명), `src/agents/data_verify.py`(원문 대조 진단).
+키가 없으면 **이 세 단계만** 건너뛰고 추천과 갱신은 그대로 동작합니다.
 
 ## 새 컴퓨터에서 이어서 작업하기
 

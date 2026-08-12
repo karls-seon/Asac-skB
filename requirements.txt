@@ -16,5 +16,6 @@ langgraph
 openai
 python-dotenv
 
-# 아래는 지금 코드가 직접 쓰지 않는다. 되살릴 때 같이 설치한다.
-#   matplotlib, seaborn, jupyter -> EDA 노트북(_archive/notebooks/)
+# 분석 노트북 (scenario_compare.ipynb, input_coverage.ipynb)
+# 추천·수집에는 필요 없다. 노트북을 돌릴 때만 설치한다.
+# jupyter
