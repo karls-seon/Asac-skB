@@ -43,7 +43,7 @@ def load_plans() -> pd.DataFrame:
     """최종 CSV를 읽고 숫자 컬럼만 숫자로 바꾼다."""
     df = pd.read_csv(final_path("통신요금제_통합데이터_최종.csv"), encoding="utf-8-sig")
     for col in ("discounted_fee", "data_gb", "subscriber_count",
-                "daily_data_gb", "tethering_gb"):
+                "daily_data_gb", "tethering_gb", "voice_minutes", "sms_count"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -197,6 +197,21 @@ def usable_gb(df: pd.DataFrame) -> pd.Series:
     return df["data_gb"].fillna(df["daily_data_gb"] * DAYS_PER_MONTH)
 
 
+def usable_count(df: pd.DataFrame, unlimited_col: str, count_col: str) -> pd.Series:
+    """월에 쓸 수 있는 통화 분수 / 문자 건수. 무제한은 inf, 판단이 안 되면 NaN.
+
+    **무제한이면 사이트가 분수·건수를 아예 안 적는다.** 통화 결측 1,765행 중 1,761행
+    (99.8%), 문자 결측 1,730행 중 1,685행(97.4%)이 무제한이고, 반대로 무제한인데
+    숫자가 적힌 행은 0이다. 결측을 그대로 두면 "300분 이상"에서 무제한 요금제가
+    통째로 탈락한다 - `usable_gb()`가 일 단위 요금제에 대해 하는 일과 같다.
+
+    남은 4행(통화)·45행(문자)은 유제한인데 숫자도 없는 경우로 전부 SKT 공식몰이다.
+    확인할 방법이 없으므로 NaN으로 두고 떨어뜨린다 - 못 지킬 조건을 지킨다고 하는
+    것보다 낫다.
+    """
+    return df[count_col].mask(df[unlimited_col].eq(True), float("inf"))
+
+
 def full_speed_unlimited(df: pd.DataFrame) -> pd.Series:
     """속도 제한 없이 데이터를 계속 쓸 수 있는 요금제인가.
 
@@ -242,6 +257,8 @@ def recommend(
     data_unlimited: bool = False,
     voice_unlimited: bool = False,
     sms_unlimited: bool = False,
+    voice_minutes: float | None = None,
+    sms_count: float | None = None,
     mvno_ok: bool = True,
     current_carrier: str | None = None,
     age: int | None = None,
@@ -270,6 +287,11 @@ def recommend(
         df = df[df["voice_unlimited"].eq(True)]
     if sms_unlimited:
         df = df[df["sms_unlimited"].eq(True)]
+    # "통화 300분 이상"처럼 숫자로 말한 경우. 무제한은 inf라 항상 통과한다.
+    if voice_minutes is not None:
+        df = df[usable_count(df, "voice_unlimited", "voice_minutes").ge(voice_minutes)]
+    if sms_count is not None:
+        df = df[usable_count(df, "sms_unlimited", "sms_count").ge(sms_count)]
     if not mvno_ok:
         df = df[df["carrier_type"].eq("MNO")]
     if current_carrier:
@@ -335,7 +357,9 @@ def recommend(
 # 그 둘은 사용자가 명시한 핵심 조건이고, 몰래 풀면 못 내는 돈을 추천하게 된다.
 RELAXABLE: list[tuple[str, object, str]] = [
     ("ott_required", False, "OTT 필수 조건"),
+    ("sms_count", None, "문자 최소 건수"),
     ("sms_unlimited", False, "문자 무제한"),
+    ("voice_minutes", None, "통화 최소 분수"),
     ("voice_unlimited", False, "통화 무제한"),
     ("age", None, "연령 전용 요금제 제외"),
     ("mvno_ok", True, "알뜰폰 제외"),
@@ -408,6 +432,41 @@ def ott_note(plans: pd.DataFrame, candidates: pd.DataFrame, ott_want: tuple[str,
 
     where = f"예산 {int(budget):,}원 안에는" if budget is not None else "조건에 맞는 요금제 중에는"
     return f"{where} {names} 포함 요금제가 없습니다. 가장 싼 것은 {fee:,}원({name})입니다."
+
+
+def broken_rules(df: pd.DataFrame, query: dict) -> list[str]:
+    """이 결과가 요청의 어느 조건을 어겼는가. `recommend()`가 성하면 항상 빈 목록.
+
+    필터의 거울이다 - 걸러낸 조건을 결과에서 다시 확인한다. 방식 비교(군집형은
+    조건을 보장하지 않는다)와 노트북에서 같은 잣대를 쓰려고 여기 둔다.
+    한 줄만 넣으면(`df.iloc[[i]]`) 그 요금제 하나의 위반이 된다.
+    """
+    if df.empty:
+        return []
+    bad = []
+    if query.get("budget") is not None and df["discounted_fee"].gt(query["budget"]).any():
+        bad.append("예산")
+    if query.get("data_unlimited"):
+        if not df["data_unlimited"].eq(True).all():
+            bad.append("무제한")
+    elif query.get("data_gb") is not None and not (
+            full_speed_unlimited(df) | usable_gb(df).ge(query["data_gb"])).all():
+        bad.append("데이터")
+    for flag, label in (("voice_unlimited", "통화무제한"), ("sms_unlimited", "문자무제한")):
+        if query.get(flag) and not df[flag].eq(True).all():
+            bad.append(label)
+    for need, flag, col, label in (("voice_minutes", "voice_unlimited", "voice_minutes", "통화분수"),
+                                   ("sms_count", "sms_unlimited", "sms_count", "문자건수")):
+        if query.get(need) is not None and not usable_count(df, flag, col).ge(query[need]).all():
+            bad.append(label)
+    if query.get("mvno_ok") is False and not df["carrier_type"].eq("MNO").all():
+        bad.append("알뜰폰")
+    if query.get("current_carrier") and blocked_by_carrier(df, query["current_carrier"]).any():
+        bad.append("가입불가")
+    if query.get("age") is not None and not df["age_condition"].map(
+            lambda c: _age_ok(c, query["age"])).all():
+        bad.append("연령")
+    return bad
 
 
 def _ott_matches(options, want: tuple[str, ...]) -> list[str]:
@@ -501,6 +560,42 @@ def check() -> None:
     assert len(daily) > 0
     assert len(recommend(daily, data_gb=30, top_n=999)) > 0, "일 단위 요금제가 전부 탈락"
 
+    # 통화·문자를 숫자로 요구해도 무제한 요금제는 탈락하지 않는다. 무제한이면
+    # 사이트가 분수를 안 적어서 결측인데, 그걸 그대로 두면 통째로 떨어진다.
+    assert plans["voice_minutes"].isna().sum() > 1_000, "전제가 바뀌었다"
+    unl = plans[plans["voice_unlimited"].eq(True)]
+    assert unl["voice_minutes"].isna().all(), "무제한인데 분수가 적힌 행이 생겼다"
+    assert len(recommend(unl, budget=99_000, voice_minutes=9_999, top_n=99_999)) == len(
+        recommend(unl, budget=99_000, top_n=99_999)), "무제한이 분수 조건에서 탈락한다"
+
+    # 유제한은 실제 분수로 걸린다. 조건을 올리면 후보가 줄어든다.
+    limited = plans[plans["voice_minutes"].notna()]
+    assert len(recommend(limited, budget=99_000, voice_minutes=300, top_n=99_999)) < len(
+        recommend(limited, budget=99_000, voice_minutes=100, top_n=99_999))
+    got = recommend(plans, budget=30_000, data_gb=20, voice_minutes=300, top_n=99_999)
+    assert (got["voice_unlimited"].eq(True) | got["voice_minutes"].ge(300)).all()
+    # 무제한을 살려 두는 게 핵심이다 - 안 살리면 후보가 1/8로 줄어든다.
+    assert got["voice_unlimited"].eq(True).sum() > got["voice_minutes"].ge(300).sum()
+
+    # 유제한인데 숫자도 없는 행(SKT 공식몰 4행)은 확인이 안 되므로 떨어뜨린다.
+    murky = plans[plans["voice_minutes"].isna() & ~plans["voice_unlimited"].eq(True)]
+    assert len(murky) == 4, len(murky)
+    assert recommend(murky, budget=99_000, voice_minutes=1, top_n=99_999).empty
+    # 안 물으면 남는다. 조건을 걸었을 때만 떨어진다는 게 요점이다.
+    assert not recommend(murky, budget=99_000, top_n=99_999).empty
+
+    # 문자도 같은 규칙이다.
+    sms = recommend(plans, budget=30_000, sms_count=100, top_n=99_999)
+    assert (sms["sms_unlimited"].eq(True) | sms["sms_count"].ge(100)).all()
+
+    # 0건이면 숫자 조건도 풀 수 있어야 한다. 무제한은 inf라 어떤 분수든 통과하므로
+    # 유제한만 남긴 표에서 본다.
+    hard = dict(budget=99_000, voice_minutes=99_999.0)
+    assert recommend(limited, **hard).empty
+    relaxed, dropped_num = relax(limited, hard)
+    assert "통화 최소 분수" in dropped_num, dropped_num
+    assert not relaxed.empty, "풀었는데도 0건이다"
+
     # 지금 쓰는 통신사의 온라인 전용은 기기변경으로 못 옮긴다.
     for carrier in ("SKT", "KT", "LGU+"):
         got = recommend(plans, budget=90_000, mvno_ok=False,
@@ -571,6 +666,16 @@ def check() -> None:
     # 모요 쪽이 프로모션가라 더 싸다.
     by_ch = nugget.set_index("signup_channel")["discounted_fee"]
     assert by_ch["모요"] < by_ch["LG U+ 공식몰"], by_ch.to_dict()
+
+    # 필터의 거울. 어떤 조건 조합을 넣어도 결과가 그 조건을 어기지 않아야 한다.
+    for q in (
+        dict(budget=30_000, data_gb=20.0, voice_minutes=300.0, sms_count=100.0),
+        dict(budget=90_000, data_unlimited=True, mvno_ok=False, current_carrier="SKT"),
+        dict(budget=50_000, data_gb=50.0, age=70, voice_unlimited=True),
+    ):
+        assert not broken_rules(recommend(plans, **q, top_n=99_999), q), q
+    # 거울이 실제로 잡는지. 필터를 안 거친 표를 넣으면 위반이 나와야 한다.
+    assert "예산" in broken_rules(plans, {"budget": 1_000})
 
     # 만족할 수 없는 조건이면 빈 결과. 예외를 던지지 않는다.
     assert recommend(plans, budget=100, data_gb=100).empty

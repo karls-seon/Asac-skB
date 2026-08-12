@@ -31,8 +31,15 @@ MVNO_SHARE = 0.041
 OTT_WANT_PROB = 0.7
 
 # 제공량을 다 쓰지는 않는다고 보되, 요금제를 고른 이유가 사라질 만큼 적게 쓰지도
-# 않는다고 본다.
+# 않는다고 본다. 데이터·통화·문자에 같이 쓴다.
 USAGE_RATIO = (0.9, 1.0)
+
+# 아래 둘은 요금제 스펙에서 역산할 수 없다. "알뜰폰도 볼 생각이 있는가", "OTT가
+# 없으면 아예 안 보겠는가"는 사람의 선호지 요금제의 성질이 아니다.
+# ponytail: 근거 없는 확률이다. 설문이나 로그가 생기면 그때 교체한다. 지금은
+# 두 축 모두 "한쪽으로 쏠리지 않는다"는 것 말고는 주장하지 않는다.
+MVNO_OPEN_PROB = 0.5       # 지금 3사를 쓰는 사람이 알뜰폰도 후보로 두는 비율
+OTT_REQUIRED_PROB = 0.3    # OTT를 원하는 사람 중 "그게 없으면 안 본다"는 비율
 
 OUT_PATH = DATA_DIR / "synthetic" / "customers.csv"
 
@@ -40,7 +47,9 @@ COLUMNS = [
     "customer_id", "age", "gender",
     "data_gb_month", "data_unlimited_need",
     "voice_unlimited_need", "sms_unlimited_need",
-    "carrier_type", "current_fee_krw", "budget_krw", "ott_want",
+    "voice_minutes_need", "sms_count_need",
+    "carrier_type", "current_carrier", "mvno_ok",
+    "current_fee_krw", "budget_krw", "ott_want", "ott_required",
     "source_plan_id",
 ]
 
@@ -85,13 +94,29 @@ def load_demographics() -> pd.DataFrame | None:
     """
     for path in sorted((DATA_DIR / "external").glob("*.csv")):
         head = pd.read_csv(path, nrows=1, low_memory=False)
-        if {"p__gender", "p__byear"} <= set(head.columns):
-            d = pd.read_csv(path, low_memory=False, usecols=["p__gender", "p__byear"])
+        if {"p__gender", "p__age1"} <= set(head.columns):
+            d = pd.read_csv(path, low_memory=False, usecols=["p__gender", "p__age1"])
             d = d.dropna()
-            d["age"] = pd.Timestamp.now().year - d["p__byear"].astype(int)
+            # 조사가 적어 둔 만나이를 그대로 쓴다. `p__byear`로 역산하면 조사 연도가
+            # 아니라 **오늘** 기준이 되어 해가 바뀔 때마다 전원이 한 살씩 늙는다
+            # (2025년 조사인데 2026년에 돌리면 +1). 전수 대조: `p__age1`은
+            # `2025 - p__byear`와 8,411행 전부 일치한다.
+            # `p__age`는 나이가 아니라 연령대 코드(1~8)다. 쓰지 않는다.
+            d["age"] = d["p__age1"].astype(int)
             d["gender"] = d["p__gender"].map({1: "남", 2: "여"})
             return d[["age", "gender"]].query("14 <= age <= 90").reset_index(drop=True)
     return None
+
+
+def _used_amount(quota: np.ndarray, unlimited: np.ndarray, rng, n: int) -> np.ndarray:
+    """제공량에서 실사용량을 역산한다. 무제한이거나 제공량이 없으면 NaN.
+
+    `data_gb`와 달리 내림을 쓰지 않는다 - 분·건은 정수 단위라 0.5분 같은 값이
+    나와도 조건 비교(`>= 300분`)에 문제가 없고, 내림으로 0을 만들면 "통화를 전혀
+    안 하는 사람"이 되어 버린다.
+    """
+    used = np.round(quota * rng.uniform(*USAGE_RATIO, size=n))
+    return np.where(unlimited, np.nan, used)
 
 
 def make(n: int = N_DEFAULT, seed: int = SEED) -> pd.DataFrame:
@@ -110,10 +135,28 @@ def make(n: int = N_DEFAULT, seed: int = SEED) -> pd.DataFrame:
     used = np.where(used <= 0, src["data_gb"].to_numpy(), used)
     data_gb = np.where(unlimited, np.nan, used)
 
+    # 통화·문자도 데이터와 같은 규칙이다. 무제한 가입자에게는 분수를 주지 않는다 -
+    # 요금제가 무제한이면 사이트가 제공량을 안 적어서(전수 확인: 겹침 0) 역산할
+    # 근거가 없다. `recommend.usable_count()`가 무제한을 inf로 보는 것과 짝이 맞는다.
+    voice_need = _used_amount(src["voice_minutes"].to_numpy(),
+                              src["voice_unlimited"].eq(True).to_numpy(), rng, n)
+    sms_need = _used_amount(src["sms_count"].to_numpy(),
+                            src["sms_unlimited"].eq(True).to_numpy(), rng, n)
+
     ott = [
         rng.choice(str(o).split(" | ")) if isinstance(o, str) and o and rng.random() < OTT_WANT_PROB else ""
         for o in src["ott_options"]
     ]
+    # OTT를 원한다고 한 사람에게만 묻는 값이다. 안 원하는 사람은 항상 False.
+    ott_required = np.array(ott) != ""
+    ott_required &= rng.random(n) < OTT_REQUIRED_PROB
+
+    is_mvno = src["carrier_type"].eq("MVNO").to_numpy()
+    # 지금 알뜰폰을 쓰는 사람은 알뜰폰을 후보에서 빼지 않는다. 3사 사용자만 갈린다.
+    mvno_ok = is_mvno | (rng.random(n) < MVNO_OPEN_PROB)
+    # 알뜰폰은 어느 망이든 3사로 번호이동이라 제한이 없다. 하나로 묶는다
+    # (`profile_input.CARRIERS`와 같은 값이어야 폼에 그대로 넣을 수 있다).
+    current_carrier = np.where(is_mvno, "알뜰폰", src["host_mno"].to_numpy())
 
     fee = src["discounted_fee"].astype(int).to_numpy()
     out = pd.DataFrame({
@@ -124,10 +167,15 @@ def make(n: int = N_DEFAULT, seed: int = SEED) -> pd.DataFrame:
         "data_unlimited_need": unlimited,
         "voice_unlimited_need": src["voice_unlimited"].eq(True).to_numpy(),
         "sms_unlimited_need": src["sms_unlimited"].eq(True).to_numpy(),
+        "voice_minutes_need": voice_need,
+        "sms_count_need": sms_need,
         "carrier_type": src["carrier_type"].to_numpy(),
+        "current_carrier": current_carrier,
+        "mvno_ok": mvno_ok,
         "current_fee_krw": fee,
         "budget_krw": fee,          # 갈아타기 전제 — 지금보다 비싼 건 추천하지 않는다
         "ott_want": ott,
+        "ott_required": ott_required,
         "source_plan_id": src["plan_id"].to_numpy(),
     })
 
@@ -170,8 +218,38 @@ def check() -> None:
     # OTT를 원하는 사람이 있고, 전부는 아니다.
     want = df["ott_want"].ne("").mean()
     assert 0 < want < 0.5, want
+    # "OTT 없으면 안 본다"는 OTT를 원한다고 한 사람에게만 붙는다.
+    assert not df.loc[df["ott_want"].eq(""), "ott_required"].any()
+    assert df["ott_required"].any(), "아무도 필수로 걸지 않았다"
 
-    print(f"check ok: MVNO {share:.1%}, OTT 희망 {want:.1%}")
+    # 통화·문자 분수는 무제한이 아닌 사람에게만 있다. `recommend.usable_count()`가
+    # 무제한을 inf로 보는 것과 짝이 맞아야 한다.
+    for need, unlimited_col in (("voice_minutes_need", "voice_unlimited_need"),
+                                ("sms_count_need", "sms_unlimited_need")):
+        unlimited = df[unlimited_col]
+        assert df.loc[unlimited, need].isna().all(), f"{need}: 무제한인데 분수가 있다"
+        assert df.loc[~unlimited, need].notna().any(), f"{need}: 유제한인데 전부 비었다"
+
+    # 사용량이 원본 요금제 제공량을 넘지 않는다 (데이터와 같은 규칙).
+    src_plans = load_plans().set_index("plan_id")
+    for need, col in (("voice_minutes_need", "voice_minutes"),
+                      ("sms_count_need", "sms_count")):
+        cap = df["source_plan_id"].map(src_plans[col])
+        over = df[need].notna() & cap.notna() & (df[need] > cap)
+        assert not over.any(), f"{need} 제공량 초과 {int(over.sum())}명"
+
+    # 지금 쓰는 통신사는 폼이 받는 값(profile_input.CARRIERS)과 같아야 한다.
+    from profile_input import CARRIERS
+
+    assert set(df["current_carrier"]) <= set(CARRIERS), set(df["current_carrier"])
+    # 알뜰폰 사용자는 알뜰폰을 후보에서 빼지 않는다.
+    assert df.loc[df["carrier_type"].eq("MVNO"), "mvno_ok"].all()
+    # 3사 사용자는 갈린다. 한쪽으로 쏠리면 축으로 못 쓴다.
+    mno_open = df.loc[df["carrier_type"].eq("MNO"), "mvno_ok"].mean()
+    assert 0.3 < mno_open < 0.7, mno_open
+
+    print(f"check ok: MVNO {share:.1%}, OTT 희망 {want:.1%}, "
+          f"통화 분수 보유 {df['voice_minutes_need'].notna().mean():.1%}")
 
 
 if __name__ == "__main__":
