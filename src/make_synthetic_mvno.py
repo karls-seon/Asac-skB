@@ -29,7 +29,6 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from make_synthetic import COLUMNS, OTT_REQUIRED_PROB, OTT_WANT_PROB, _used_amount
 from recommend import load_plans as read_plans
 from schema import DATA_DIR
 
@@ -37,8 +36,28 @@ N_DEFAULT = 40_000
 SEED = 20260812
 
 # 제공량을 다 쓰지는 않는다고 보되, 요금제를 고른 이유가 사라질 만큼 적게 쓰지도
-# 않는다고 본다. 본체(0.9~1.0)보다 넓게 잡아 세그먼트 경계를 벌린다.
+# 않는다고 본다. 세그먼트 경계를 넓게 본다.
 USAGE_RATIO = (0.8, 1.0)
+
+# 요금제에 OTT가 붙어 있어도 그걸 원해서 고른 사람만 있는 건 아니다. 딸려온 경우를
+# 빼려고 확률을 낮춰 잡는다.
+OTT_WANT_PROB = 0.7
+
+# OTT를 원하는 사람 중 "그게 없으면 아예 안 보겠다"는 비율.
+# ponytail: 근거 없는 확률이다. 요금제 스펙에서 역산할 수 없는 사람의 선호라
+# 설문이나 로그가 생기면 그때 교체한다. 지금은 "한쪽으로 쏠리지 않는다"는 것
+# 말고는 주장하지 않는다.
+OTT_REQUIRED_PROB = 0.3
+
+COLUMNS = [
+    "customer_id", "age", "gender",
+    "data_gb_month", "data_unlimited_need",
+    "voice_unlimited_need", "sms_unlimited_need",
+    "voice_minutes_need", "sms_count_need",
+    "carrier_type", "current_carrier", "mvno_ok",
+    "current_fee_krw", "budget_krw", "ott_want", "ott_required",
+    "source_plan_id",
+]
 
 # 이미지에 20~60대만 있어서 그 밖은 만들지 않는다. 원자료의 70대+는 알뜰폰
 # 응답자의 24.9%나 되는데, 패널이 2010년부터 같은 가구를 추적해 함께 늙은 결과라
@@ -107,6 +126,17 @@ MALE_PROB = 0.402
 OUT_COLUMNS = COLUMNS + ["fee_group"]
 
 OUT_PATH = DATA_DIR / "synthetic" / "customers_mvno.csv"
+
+
+def _used_amount(quota: np.ndarray, unlimited: np.ndarray, rng, n: int) -> np.ndarray:
+    """제공량에서 실사용량을 역산한다. 무제한이거나 제공량이 없으면 NaN.
+
+    `data_gb`와 달리 내림을 쓰지 않는다 - 분·건은 정수 단위라 0.5분 같은 값이
+    나와도 조건 비교(`>= 300분`)에 문제가 없고, 내림으로 0을 만들면 "통화를 전혀
+    안 하는 사람"이 되어 버린다.
+    """
+    used = np.round(quota * rng.uniform(*USAGE_RATIO, size=n))
+    return np.where(unlimited, np.nan, used)
 
 
 def load_mvno_plans() -> pd.DataFrame:
@@ -184,9 +214,9 @@ def make(n: int = N_DEFAULT, seed: int = SEED) -> pd.DataFrame:
     data_gb = np.where(unlimited, np.nan, used)
 
     voice_need = _used_amount(src["voice_minutes"].to_numpy(),
-                              src["voice_unlimited"].eq(True).to_numpy(), rng, n, USAGE_RATIO)
+                              src["voice_unlimited"].eq(True).to_numpy(), rng, n)
     sms_need = _used_amount(src["sms_count"].to_numpy(),
-                            src["sms_unlimited"].eq(True).to_numpy(), rng, n, USAGE_RATIO)
+                            src["sms_unlimited"].eq(True).to_numpy(), rng, n)
 
     ott = [
         rng.choice(str(o).split(" | ")) if isinstance(o, str) and o and rng.random() < OTT_WANT_PROB else ""

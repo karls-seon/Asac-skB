@@ -3,7 +3,7 @@ requests
 beautifulsoup4
 selenium          # LG U+ 수집에만 필요 (목록이 SPA라 브라우저가 있어야 보임)
 
-# 추천 (src/recommend.py, fair_price.py, make_synthetic.py, compare_methods.py)
+# 추천 (src/recommend.py, fair_price.py, make_synthetic_mvno.py)
 pandas
 scikit-learn
 
@@ -16,7 +16,7 @@ langgraph
 openai
 python-dotenv
 
-# 분석 노트북 (scenario_compare.ipynb, input_coverage.ipynb, segment_ml_check.ipynb)
+# 분석 노트북 (segment_ml_check.ipynb)
 # 추천·수집에는 필요 없다. 노트북을 돌릴 때만 설치한다.
 # jupyter
 # matplotlib        # segment_ml_check.ipynb의 막대그래프에만 쓴다
