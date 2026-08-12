@@ -72,7 +72,7 @@ def validate(plans: list[dict], benefits: list[dict]) -> list[str]:
     return errors
 
 
-def data_retrieval_agent(state: dict) -> dict:
+def data_retrieval_agent() -> dict:
     """plans/benefits와 검증 결과를 dict로 돌려준다."""
     plans = _read_csv(PLAN_OUT)
     benefits = _read_csv(BENEFIT_OUT)
@@ -87,7 +87,7 @@ def data_retrieval_agent(state: dict) -> dict:
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    out = data_retrieval_agent({})
+    out = data_retrieval_agent()
     print(f"plans: {len(out['plans'])}행 / benefits: {len(out['benefits'])}행")
     print(f"data_as_of: {out['data_as_of'] or '(갱신 기록 없음)'}")
     print(f"검증: {out['data_validation_errors'] or '통과'}")

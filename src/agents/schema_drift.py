@@ -295,23 +295,6 @@ def diagnose(sites: list[str] | None = None, run_date: str | None = None,
     return path, findings
 
 
-# 가드 위반 메시지에서 사이트를 알아낸다. check_guards가 만드는 문구는
-# "{라벨} 행 수 급감: ..." / "{라벨} 요금제가 0행"처럼 라벨로 시작한다.
-# **긴 라벨을 먼저** 봐야 한다 - "SKT"에도 "KT"가 들어있다.
-_LABEL_TO_SITE = [("MVNO(모요)", "moyo"), ("LGU+", "lguplus"), ("SKT", "skt"), ("KT", "kt")]
-
-
-def suspect_sites(violations: list[str]) -> list[str]:
-    """가드 위반 목록 -> 의심 사이트. 사이트를 특정 못 하면 빈 리스트."""
-    found = []
-    for v in violations:
-        for label, site in _LABEL_TO_SITE:
-            if v.startswith(label) and site not in found:
-                found.append(site)
-                break
-    return found
-
-
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     only_baseline = "--baseline" in sys.argv

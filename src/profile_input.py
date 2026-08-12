@@ -73,6 +73,8 @@ def build_query(
     usage_hint: str | None = None,
     voice_unlimited: bool = False,
     sms_unlimited: bool = False,
+    voice_minutes: float | None = None,
+    sms_count: float | None = None,
     mvno_ok: bool = True,
     current_carrier: str | None = None,
     age: int | None = None,
@@ -85,6 +87,10 @@ def build_query(
     budget = _as_number(budget, "예산")
     age = _as_number(age, "나이")
     current_fee = _as_number(current_fee, "현재 요금")
+    # 폼에는 없고 채팅에서만 들어오는 값이다. "통화 300분은 돼야 해"처럼 숫자로
+    # 말하는 사람이 있는데, 지금은 그 말이 통째로 버려진다.
+    voice_minutes = _as_number(voice_minutes, "필요한 통화 시간")
+    sms_count = _as_number(sms_count, "필요한 문자 건수")
 
     if budget is None or budget <= 0:
         raise InputError("예산을 1원 이상으로 입력해 주세요.")
@@ -100,6 +106,10 @@ def build_query(
 
     if age is not None and not (0 < age < 120):
         raise InputError("나이를 다시 확인해 주세요.")
+
+    for value, label in ((voice_minutes, "통화 시간"), (sms_count, "문자 건수")):
+        if value is not None and value < 0:
+            raise InputError(f"필요한 {label}을(를) 0 이상으로 입력해 주세요.")
 
     if current_carrier is not None and current_carrier not in CARRIERS:
         raise InputError(f"지금 쓰는 통신사를 {' / '.join(CARRIERS)} 중에서 골라 주세요.")
@@ -121,6 +131,8 @@ def build_query(
         "data_unlimited": unlimited,
         "voice_unlimited": bool(voice_unlimited),
         "sms_unlimited": bool(sms_unlimited),
+        "voice_minutes": voice_minutes,
+        "sms_count": sms_count,
         "mvno_ok": bool(mvno_ok),
         # 알뜰폰 사용자는 3사 어디로든 번호이동이라 막을 게 없다. 3사일 때만 넘긴다.
         "current_carrier": current_carrier if current_carrier in ("SKT", "KT", "LGU+") else None,
@@ -146,6 +158,12 @@ SLOTS = {
     "usage_hint": f"GB를 모른다고 할 때만. 사용 습관. {list(USAGE_HINTS)} 중 하나.",
     "voice_unlimited": "통화를 많이 해서 무제한이 필요하면 true.",
     "sms_unlimited": "문자를 많이 보내면 true.",
+    # 무제한이라고 말한 사람에게는 분수를 매기지 않는다. 두 슬롯이 같이 차면
+    # 더 센 쪽(무제한)만 남기면 되지만, 애초에 모델이 둘 다 뽑지 않게 못을 박는다.
+    "voice_minutes": ("통화가 월 몇 분 필요한지 숫자로 말했을 때만. 예: '300분은 "
+                      "돼야 해' -> 300. 무제한이라고 했으면 이 키는 넣지 마라."),
+    "sms_count": ("문자가 월 몇 건 필요한지 숫자로 말했을 때만. 무제한이라고 "
+                  "했으면 이 키는 넣지 마라."),
     "mvno_ok": "알뜰폰도 괜찮으면 true, 통신3사만 원하면 false.",
     "current_carrier": f"지금 쓰는 통신사. {list(CARRIERS)} 중 하나. 말 안 했으면 생략.",
     "current_fee": "지금 매달 내는 통신요금(원). 신규 가입이면 생략.",
@@ -302,8 +320,8 @@ def update_slots(slots: dict, text: str, extract=extract_slots) -> dict:
 def to_query(slots: dict) -> dict:
     """모인 슬롯을 `recommend()` 인자로. 필수가 비면 InputError."""
     allowed = ("budget", "data_band", "usage_hint", "voice_unlimited",
-               "sms_unlimited", "mvno_ok", "current_carrier", "age", "ott_want",
-               "ott_required", "current_fee")
+               "sms_unlimited", "voice_minutes", "sms_count", "mvno_ok",
+               "current_carrier", "age", "ott_want", "ott_required", "current_fee")
     kw = {k: v for k, v in slots.items() if k in allowed and v is not None}
     # 필수 슬롯이 비었으면 크래시나 일반 안내문 대신 **다음에 물을 그 문장**을 준다.
     # "모르겠어"라고 답한 사람에게는 구간 목록이 아니라 습관 질문이 나가야 한다.
@@ -322,6 +340,11 @@ def check() -> None:
     # 지금 내는 돈을 주면 그대로 실려 나가 절감액 계산에 쓰인다.
     assert build_query(budget=30_000, data_band="5~20GB", current_fee=69_000)["current_fee"] == 69_000
 
+    # 통화·문자를 숫자로 말하면 그대로 실려 나간다. 안 말하면 None이라 안 걸린다.
+    q2 = build_query(budget=30_000, data_band="5~20GB", voice_minutes=300, sms_count="50")
+    assert q2["voice_minutes"] == 300 and q2["sms_count"] == 50, q2
+    assert q["voice_minutes"] is None and q["sms_count"] is None
+
     # 무제한 구간은 GB가 아니라 플래그로 나간다.
     assert build_query(budget=50_000, data_band="무제한")["data_gb"] is None
     assert build_query(budget=50_000, data_band="무제한")["data_unlimited"] is True
@@ -337,6 +360,8 @@ def check() -> None:
         dict(budget=10_000_000, data_band="5~20GB"),
         dict(budget=30_000, data_band="5~20GB", current_fee=-1),
         dict(budget=30_000, data_band="5~20GB", ott_want="넷플릭스"),   # 목록이어야 함
+        dict(budget=30_000, data_band="5~20GB", voice_minutes=-1),
+        dict(budget=30_000, data_band="5~20GB", sms_count="많이"),
     ):
         try:
             build_query(**bad)
@@ -428,6 +453,7 @@ def _check_chat() -> None:
     assert q == {
         "budget": 30_000, "data_gb": 50.0, "data_unlimited": False,
         "voice_unlimited": False, "sms_unlimited": False,
+        "voice_minutes": None, "sms_count": None,
         "mvno_ok": False, "current_carrier": None, "age": None, "ott_want": (),
         "ott_required": False, "current_fee": None,
     }, q
