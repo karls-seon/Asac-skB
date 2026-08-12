@@ -120,7 +120,7 @@ def _mentions_only_given(text: str, f: dict) -> bool:
 def check() -> None:
     from fair_price import attach_value_score
     from profile_input import build_query
-    from recommend import ott_note, recommend, relax
+    from recommend import recommend
 
     plans = attach_value_score()
     q = build_query(budget=30_000, data_band="20~50GB", current_fee=69_000)
