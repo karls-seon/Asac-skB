@@ -108,14 +108,17 @@ def load_demographics() -> pd.DataFrame | None:
     return None
 
 
-def _used_amount(quota: np.ndarray, unlimited: np.ndarray, rng, n: int) -> np.ndarray:
+def _used_amount(quota: np.ndarray, unlimited: np.ndarray, rng, n: int,
+                 ratio: tuple[float, float] = USAGE_RATIO) -> np.ndarray:
     """제공량에서 실사용량을 역산한다. 무제한이거나 제공량이 없으면 NaN.
 
     `data_gb`와 달리 내림을 쓰지 않는다 - 분·건은 정수 단위라 0.5분 같은 값이
     나와도 조건 비교(`>= 300분`)에 문제가 없고, 내림으로 0을 만들면 "통화를 전혀
     안 하는 사람"이 되어 버린다.
+
+    `ratio`는 `make_synthetic_mvno.py`가 다른 폭(0.8~1.0)을 쓰려고 열어둔 것이다.
     """
-    used = np.round(quota * rng.uniform(*USAGE_RATIO, size=n))
+    used = np.round(quota * rng.uniform(*ratio, size=n))
     return np.where(unlimited, np.nan, used)
 
 
