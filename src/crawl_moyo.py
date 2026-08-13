@@ -492,9 +492,13 @@ def parse_card_only(a_tag) -> dict | None:
     # 실제로 그 요금제는 21,560원인데 5,000원으로 기록돼 있었다.
     spec_text = card_text[name_m.end(1):]
 
+    # 요금과 같은 이유로 데이터도 **이름 뒤 구간에서만** 찾는다.
+    # 카드 전체에서 찾으면 이름 끝의 "월"이 데이터 표기의 "월 …"로 오인된다
+    # (예: "시월 무제한 7GB+1Mbps" -> "월 무제한"으로 걸려서 7GB짜리가
+    # 무제한으로 기록됐다. 시월모바일 6건, 2026-08-13 발견).
     data_m = re.search(
         r"((?:월|매일)\s+(?:무제한|[\d.]+\s*(?:GB|MB)).*?|데이터\s*제공안함|무제한)\s+통화",
-        card_text,
+        spec_text,
     )
     data_text = data_m.group(1) if data_m else ""
     data_unlimited = "무제한" in data_text
@@ -627,14 +631,15 @@ def parse_card(a_tag, now: str):
     for b in benefits:
         b["host_mno"] = card["host_mno"]
 
-    # 브랜드가 "KT"/"SKT"/"LG U+" 자체면 알뜰폰이 아니라 통신 3사 자체
-    # 온라인전용 요금제(너겟/요고 등)를 모요가 그대로 중개하는 것이다.
-    # carrier_type을 MVNO로 두면 "알뜰폰"으로 잘못 취급된다.
-    is_mno_brand = brand in HOST_BRAND_MAP
+    # 모요에서 수집한 행은 브랜드와 무관하게 carrier_type=MVNO로 둔다(수집 출처
+    # = 알뜰폰 중개 플랫폼). 너겟/요고/다이렉트처럼 브랜드가 "KT"/"SKT"/"LG U+"
+    # 자체인 통신 3사 온라인전용 요금제도 모요판은 MVNO로 표시하고, 통신사
+    # 사이트에서 직접 수집한 같은 요금제(plan_category="KT-온라인전용(요고)" 등)가
+    # MNO 행으로 따로 남는다 - 같은 요금제가 두 채널에 각각 한 행씩 존재한다.
+    # 어느 쪽인지는 plan_category("moyo")로 구분한다.
     plan = {
         **card,
-        "carrier_type": "MNO" if is_mno_brand else card["carrier_type"],
-        "mvno_brand": "" if is_mno_brand else brand,
+        "mvno_brand": brand,
         "signup_notice": signup_notice,
         # 모요 목록 카드에는 테더링 정보가 없다. 상세페이지 "지원" 섹션의
         # "모바일 핫스팟 월 60GB" 에서 가져온다.

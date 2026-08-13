@@ -1,0 +1,12 @@
+﻿change_type,plan_id,base_plan_id,host_mno,plan_category,plan_name,field,old_value,new_value,source_url
+변경,33130,33130,LGU+,moyo,시월 무제한 매일5GB+5Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/33130
+변경,27775,27775,LGU+,moyo,시월 무제한 11GB+매일2GB+3Mbps,data_gb,,11.0,https://www.moyoplan.com/plans/27775
+변경,27775,27775,LGU+,moyo,시월 무제한 11GB+매일2GB+3Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/27775
+변경,27774,27774,LGU+,moyo,시월 무제한 100GB+5Mbps,data_gb,,100.0,https://www.moyoplan.com/plans/27774
+변경,27774,27774,LGU+,moyo,시월 무제한 100GB+5Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/27774
+변경,27749,27749,LGU+,moyo,시월 무제한 10GB+1Mbps,data_gb,,10.0,https://www.moyoplan.com/plans/27749
+변경,27749,27749,LGU+,moyo,시월 무제한 10GB+1Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/27749
+변경,27750,27750,LGU+,moyo,시월 무제한 15GB+1Mbps,data_gb,,15.0,https://www.moyoplan.com/plans/27750
+변경,27750,27750,LGU+,moyo,시월 무제한 15GB+1Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/27750
+변경,27776,27776,LGU+,moyo,시월 무제한 7GB+1Mbps,data_gb,,7.0,https://www.moyoplan.com/plans/27776
+변경,27776,27776,LGU+,moyo,시월 무제한 7GB+1Mbps,data_unlimited,True,False,https://www.moyoplan.com/plans/27776
