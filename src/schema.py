@@ -140,6 +140,36 @@ PLAN_COLUMNS = [
     "crawled_at",
 ]
 
+def total_data_gb(row: dict):
+    """`data_gb`에 넣을 월 환산 총 제공량 = 사이트 월 총량 + daily_data_gb * 30.
+
+    사이트 표기가 "월 11GB + 매일 2GB"처럼 단위가 섞여 있어서, 월 총량만 담으면
+    일 단위 제공분이 통째로 빠진다(11GB로만 보인다). 최종 CSV의 `data_gb`는
+    **한 달에 실제로 쓸 수 있는 총량**으로 통일한다 - 71GB.
+
+    사이트에 적힌 원래 값은 `data/interim/*.csv`(크롤러 출력)와
+    `daily_data_gb` 컬럼에 남으므로, `data_gb - daily_data_gb * 30`으로 되돌릴
+    수 있다(agents/data_verify.py가 그 규칙을 쓴다).
+
+    무제한은 빈값 그대로다(그 사실은 `data_unlimited`가 담고 있다). 데이터를
+    아예 안 주는 행도 빈값.
+
+    ponytail: 한 달을 30일 고정으로 본다. 일 단위 제공량은 이월이 안 되므로
+    실사용 상한은 이 값보다 낮다 - 일 단위 요금제가 과대추천되면 계수를 붙인다.
+    """
+    if str(row.get("data_unlimited", "")) == "True":
+        return ""
+
+    def _num(value):
+        text = str(value if value is not None else "").strip()
+        return float(text) if text else None
+
+    monthly, daily = _num(row.get("data_gb")), _num(row.get("daily_data_gb"))
+    if monthly is None and daily is None:
+        return ""
+    return round((monthly or 0) + (daily or 0) * 30, 3)
+
+
 # 혜택 분류 체계 (4개 사이트 공통)
 BENEFIT_CATEGORIES = [
     "OTT/구독",        # 넷플릭스, 유튜브 프리미엄, 디즈니+, 티빙, 밀리, AI구독 등
@@ -648,3 +678,18 @@ if __name__ == "__main__":
         got = classify_benefit_name(name, default)
         assert got == expected, f"{name!r} -> {got} (기대: {expected})"
     print(f"classify_benefit_name 점검 {len(CASES)}건 통과")
+
+    # 크롤러는 실수/None으로, merge는 CSV에서 읽은 문자열로 같은 함수를 부른다.
+    GB_CASES = [  # total_data_gb
+        ({"data_gb": 11.0, "daily_data_gb": 2.0}, 71.0),      # 월 총량 + 일 재충전
+        ({"data_gb": "11.0", "daily_data_gb": "2.0"}, 71.0),  # merge가 넘기는 문자열
+        ({"data_gb": "", "daily_data_gb": 5.0}, 150.0),       # 일 단위만 있는 모요 카드
+        ({"data_gb": 100.0, "daily_data_gb": ""}, 100.0),     # 일반 요금제는 그대로
+        ({"data_gb": 0, "daily_data_gb": ""}, 0.0),           # 0GB는 "값 없음"이 아니다
+        ({"data_gb": "", "daily_data_gb": "", "data_unlimited": "True"}, ""),
+        ({"data_gb": None, "daily_data_gb": None}, ""),       # 데이터 미제공
+    ]
+    for row, expected in GB_CASES:
+        got = total_data_gb(row)
+        assert got == expected, f"{row} -> {got} (기대: {expected})"
+    print(f"total_data_gb 점검 {len(GB_CASES)}건 통과")

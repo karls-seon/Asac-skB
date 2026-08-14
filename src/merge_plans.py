@@ -15,7 +15,8 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-from schema import PLAN_COLUMNS, BENEFIT_COLUMNS, interim_path, final_path
+from schema import (PLAN_COLUMNS, BENEFIT_COLUMNS, total_data_gb,
+                    interim_path, final_path)
 
 SITES = ("kt", "skt", "lguplus", "moyo")
 PLAN_FILES = [interim_path(f"{s}_plans.csv") for s in SITES]
@@ -140,9 +141,16 @@ def build(verbose: bool = True) -> tuple[list[dict], list[dict], Counter, list[d
     # 부르는 경로에서 통째로 빠졌다(discounted_fee 90행·age_condition 14행 결측).
     borrowed = borrow_age_condition(plans)
     filled = fill_undiscounted_fee(plans)
+    # 일 단위 제공량(매일 2GB 등)을 월 환산해 data_gb에 합산한다. 사이트 표기를
+    # 그대로 둔 interim과 달리, 최종 CSV의 data_gb는 "한 달에 쓸 수 있는 총량"이다.
+    # 되돌리려면 data_gb - daily_data_gb * 30.
+    daily_merged = sum(1 for p in plans if str(p.get("daily_data_gb", "")).strip())
+    for p in plans:
+        p["data_gb"] = total_data_gb(p)
     if verbose:
         print(f"  모요발 {borrowed}행의 가입 연령을 3사 수집분에서 채움")
         print(f"  할인 없는 요금제 {filled}행의 discounted_fee를 정가로 채움")
+        print(f"  일 단위 제공량이 있는 {daily_merged}행의 data_gb에 daily×30을 합산")
     return plans, benefits, dropped, all_rows
 
 

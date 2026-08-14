@@ -292,7 +292,14 @@ def compare(csv_row: dict, extracted: dict) -> list[dict]:
     for field in VERIFY_FIELDS:
         norm = _NORMALIZERS[field]
         ours, theirs = norm(csv_row.get(field)), norm(extracted.get(field))
-        if theirs is None:
+        # 최종 CSV의 data_gb는 일 단위 제공량을 월 환산해 더한 값이라(merge_plans
+        # 참고) 사이트 표기와 다르다. 합산분을 빼고 사이트가 실제로 적어 놓은
+        # 값과 대조한다. 뺀 값이 0이면 사이트에 월 총량 자체가 없는 카드
+        # ("매일 5GB"만 있는 모요 요금제)라 대조할 대상이 없다 - 판정불가.
+        daily = norm_gb(csv_row.get("daily_data_gb")) if field == "data_gb" else None
+        if daily and ours is not None:
+            ours = round(ours - daily * 30, 2) or None
+        if theirs is None or (daily and ours is None):
             verdict = "판정불가"
         elif ours == theirs:
             verdict = "일치"
