@@ -140,13 +140,22 @@ def diff_plans(prev: list[dict], new: list[dict], all_new_rows: list[dict]) -> l
         if old_row is None:
             continue
         for field in WATCHED_FIELDS:
-            old_val, new_val = old_row.get(field, ""), new_row.get(field, "")
+            old_val, new_val = _cmp(old_row.get(field, "")), _cmp(new_row.get(field, ""))
             if old_val != new_val:
                 changes.append({
                     "change_type": "변경", **_ident(new_row),
                     "field": field, "old_value": old_val, "new_value": new_val,
                 })
     return changes
+
+
+def _cmp(value) -> str:
+    """이전본(CSV에서 읽어 전부 문자열)과 새 후보(merge가 만든 파이썬 값)를
+    같은 자로 재기 위한 정규화. merge_plans가 data_gb를 float로 채우기 때문에
+    이게 없으면 값이 그대로여도 `110.0 != "110.0"`이 되어 전 행이 "변경"으로
+    잡힌다. CSV에 쓰일 때와 같은 문자열로 맞춘다.
+    """
+    return "" if value is None else str(value).strip()
 
 
 def _ident(row: dict) -> dict:
@@ -253,7 +262,27 @@ def write_reports(run_date: str, status: str, prev: list[dict], new: list[dict],
     return changes_path, summary_path
 
 
+def _selfcheck():
+    """CSV에서 읽은 이전본과 merge가 만든 새 후보의 타입 차이가 가짜 "변경"으로
+    새지 않는지 확인한다. `--self-check`로 돌린다.
+    """
+    prev = [{"plan_id": "p1", "data_gb": "110.0", "monthly_fee": "39000"}]
+    same = [{"plan_id": "p1", "data_gb": 110.0, "monthly_fee": "39000"}]
+    assert diff_plans(prev, same, same) == [], "값이 그대로인데 변경으로 잡힘"
+
+    moved = [{"plan_id": "p1", "data_gb": 120.0, "monthly_fee": "39000"}]
+    got = diff_plans(prev, moved, moved)
+    assert [c["field"] for c in got] == ["data_gb"], got
+    assert (got[0]["old_value"], got[0]["new_value"]) == ("110.0", "120.0"), got
+
+    assert [c["change_type"] for c in diff_plans(prev, [], [])] == ["단종"]
+    print("diff_plans 점검 통과")
+
+
 def main() -> int:
+    if "--self-check" in sys.argv:
+        _selfcheck()
+        return 0
     parse_only = "--parse-only" in sys.argv
     run_date = date.today().isoformat()
     print(f"[갱신 시작] {run_date} (parse_only={parse_only})")

@@ -297,6 +297,87 @@ def fetch_all():
 
 GIFT_LABEL_SUFFIX = " 상세 페이지 새 탭 열기"
 
+# 사은품이 3개 이상이면 모요는 앞의 2개만 렌더하고 나머지는 "펼쳐보기" 버튼 뒤에
+# 감춘다. 감춘 항목은 HTML에 <a href="/gift-group/...">가 아예 없고, Next.js
+# 플라이트 페이로드(self.__next_f.push)의 giftGroups 배열에만 들어있다.
+# 캐시 2,240건 전수 확인: DOM 2,413건 vs 페이로드 2,726건 - 109개 요금제에서
+# 313건이 통째로 빠져 있었다(예: 37132 "모두다 맘껏 안심 2.5GB+"는 쿠팡캐시
+# 2만원 / 3대 마트 상품권 2만원 두 건이 누락). 페이로드가 DOM의 상위집합이라
+# (DOM에만 있고 페이로드에 없는 건 0건) DOM에 없는 것만 여기서 보탠다.
+_FLIGHT_CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[1,(".*?")\]\)</script>', re.S)
+_GIFT_OBJ_RE = re.compile(r'\{"giftGroup":\{"id":')
+_JSON_DECODER = json.JSONDecoder()
+
+
+# 사은품을 받으려면 "유심을 어디서 사서 개통했는지"가 조건인 경우가 있는데,
+# 구매처는 하나만 고를 수 있어서 이런 사은품끼리는 **동시에 받을 수 없다**.
+# 예: 37132는 쿠팡캐시 2만원(쿠팡 유심)과 3대 마트 상품권 2만원(KT 바로유심)이
+# 둘 다 붙어 있지만 실제로 받는 건 둘 중 하나뿐이라, 혜택 합계를 4만원으로
+# 잡으면 안 된다. 반대로 같은 구매처가 조건인 사은품끼리는 전부 함께 받는다
+# (SKT T다이렉트샵 조건 하나에 넷플릭스·디즈니+·로밍할인 등이 같이 딸려온다).
+# 그래서 "택1 그룹"(select_group)이 아니라 조건값(benefit_condition)으로 적고,
+# 값이 같으면 합산 / 다르면 택1로 쓴다.
+#
+# 캐시 2,240건의 사은품 281종을 전수 확인해서 만든 패턴이다. "유심/배송비 무료",
+# "NFC 유심 무료 제공", "유심비 지원" 처럼 이름에 유심이 들어가지만 구매처
+# 조건이 아닌 사은품(46건 중 9건)이 섞이지 않게 구매처 표현만 좁게 잡았다.
+_GIFT_CHANNEL_PATTERNS = [
+    ("KT바로유심", r"바로유심|바로배송\s*유심"),
+    ("쿠팡유심", r"쿠팡\s*유심"),
+    ("모요유심", r"모요에서\s*신청한\s*유심"),
+    ("택배일반유심", r"일반유심을\s*['\"]?택배로\s*받을래요"),
+    ("T다이렉트샵", r"T\s*다이렉트샵"),
+]
+
+
+def _gift_condition(text: str) -> str:
+    for name, pattern in _GIFT_CHANNEL_PATTERNS:
+        if re.search(pattern, text or ""):
+            return name
+    return ""
+
+
+def parse_flight_gifts(html: str) -> dict:
+    """플라이트 페이로드의 사은품을 {사은품id: (이름, 조건설명, 배타조건)}으로 뽑는다.
+
+    페이로드는 <script> 청크 여러 개로 쪼개져 있고, 같은 값이 두 번 나오면
+    뒤엣것이 "$3e:props:giftGroupList" 같은 참조로 치환돼 있어서 통째로
+    JSON 파싱할 수 없다. giftGroup 객체가 시작하는 위치마다 raw_decode로
+    하나씩 떼어내면 두 형태(배열 인라인 / 참조) 모두에서 같은 결과가 나온다.
+    """
+    try:
+        payload = "".join(json.loads(chunk) for chunk in _FLIGHT_CHUNK_RE.findall(html))
+    except ValueError:
+        return {}
+    gifts = {}
+    for m in _GIFT_OBJ_RE.finditer(payload):
+        try:
+            obj, _ = _JSON_DECODER.raw_decode(payload, m.start())
+        except ValueError:
+            continue
+        group = obj.get("giftGroup") or {}
+        gift_id = group.get("id")
+        if gift_id is None:
+            continue
+        # 렌더된 카드의 "대상: … 시기: …" 문구와 같은 자리의 원본 필드.
+        condition = (obj.get("rewardConditionList") or {}).get("description") or ""
+        timing = group.get("rewardTimingDescription") or ""
+        title = group.get("title") or ""
+        subtitle = group.get("subtitle") or ""
+        detail = " ".join(
+            part for part in (
+                f"대상: {condition}" if condition else "",
+                f"시기: {timing}" if timing else "",
+            ) if part
+        )
+        # 구매처가 조건설명에만 적힌 사은품("3대 마트 + 네이버페이 포인트 2만원")도,
+        # 부제에만 적힌 사은품("'바로유심' 또는 '바로배송 유심' 구매 후 개통 시" +
+        # 조건설명 빈값)도 있어서 세 필드를 다 본다.
+        gifts[str(gift_id)] = (
+            title, detail, _gift_condition(f"{title} {subtitle} {condition}"),
+        )
+    return gifts
+
 
 def parse_support_services(soup) -> dict:
     """
@@ -429,6 +510,24 @@ def parse_detail(plan_id: str, plan_name: str):
 
     benefits = []
 
+    # 링크가 /gift-group/이라고 다 사은품인 건 아니다. 모요는 OTT 구독권
+    # (밀리의 서재/티빙), 결합 추가데이터(솔로결합 +20GB), 멤버십까지 전부
+    # 같은 링크로 붙여 놔서, 링크 종류로 카테고리를 정하면 MVNO 혜택이
+    # 통째로 사은품 하나로 몰린다. 3사와 같은 이름 기반 규칙을 쓰고,
+    # 단서가 없을 때만 사은품으로 둔다.
+    def add_gift(label: str, detail: str, condition: str):
+        benefits.append(make_benefit_row(
+            plan_id, "", plan_name, classify_benefit_name(label, "사은품/페이백"), label,
+            value_won=_recurring_payback_won(label) or _parse_krw(label) or "",
+            condition=condition, detail=detail, source_url=url,
+        ))
+
+    # 렌더된 사은품도 배타조건은 페이로드 쪽 원본 필드로 판정한다. 카드에 보이는
+    # 문구는 조건설명 일부가 잘려 있어서(부제만 있고 "대상:"이 없는 카드가 있다)
+    # 같은 사은품이 렌더 여부에 따라 다르게 분류될 수 있다.
+    flight_gifts = parse_flight_gifts(html)
+
+    rendered_gift_ids = set()
     for a in soup.select('a[href^="/gift-group/"]'):
         label = (a.get("aria-label") or "").strip()
         if label.endswith(GIFT_LABEL_SUFFIX):
@@ -436,16 +535,17 @@ def parse_detail(plan_id: str, plan_name: str):
         if not label:
             continue
         detail = " ".join(s.get_text(" ", strip=True) for s in a.select("span") if "대상:" in s.get_text() or "시기:" in s.get_text())
-        # 링크가 /gift-group/이라고 다 사은품인 건 아니다. 모요는 OTT 구독권
-        # (밀리의 서재/티빙), 결합 추가데이터(솔로결합 +20GB), 멤버십까지 전부
-        # 같은 링크로 붙여 놔서, 링크 종류로 카테고리를 정하면 MVNO 혜택이
-        # 통째로 사은품 하나로 몰린다. 3사와 같은 이름 기반 규칙을 쓰고,
-        # 단서가 없을 때만 사은품으로 둔다.
-        benefits.append(make_benefit_row(
-            plan_id, "", plan_name, classify_benefit_name(label, "사은품/페이백"), label,
-            value_won=_recurring_payback_won(label) or _parse_krw(label) or "",
-            detail=detail, source_url=url,
-        ))
+        id_m = re.search(r"/gift-group/(\d+)", a.get("href", ""))
+        gift_id = id_m.group(1) if id_m else ""
+        if gift_id:
+            rendered_gift_ids.add(gift_id)
+        add_gift(label, detail, flight_gifts.get(gift_id, ("", "", ""))[2])
+
+    # "펼쳐보기" 뒤에 감춰져 DOM에 렌더되지 않은 사은품 보충. parse_flight_gifts 참고.
+    for gift_id, (label, detail, condition) in flight_gifts.items():
+        if gift_id in rendered_gift_ids or not label:
+            continue
+        add_gift(label, detail, condition)
 
     support = parse_support_services(soup)
     support["voice_extra_minutes"] = parse_addon_voice(soup)

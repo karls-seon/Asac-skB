@@ -192,6 +192,13 @@ BENEFIT_COLUMNS = [
     "user_pay_won",              # 사용자 실부담금(원). 0이면 완전 무료
     "is_selectable",              # true면 같은 select_group 안에서 택1
     "select_group",                # 택1 그룹명 (예: 프리미엄플러스(택1))
+    # 이 혜택을 받으려면 충족해야 하는 **배타적 전제조건**. 빈값이면 요금제만
+    # 개통하면 받는다. 값이 있으면 같은 값을 가진 혜택끼리는 함께 받을 수 있고,
+    # 값이 서로 다른 혜택끼리는 동시에 받을 수 없다(유심을 쿠팡에서 사면서
+    # 동시에 KT 바로유심으로 살 수는 없다). is_selectable과는 반대 방향의
+    # 관계라 따로 둔다 - select_group은 "그룹 안에서 택1", 이 열은
+    # "같은 값끼리는 합산, 다른 값끼리는 택1"이다.
+    "benefit_condition",
     "benefit_detail",               # 원문 설명
     "source_url",
 ]
@@ -471,7 +478,8 @@ def agreement_discount(fee):
 
 def make_benefit_row(
     plan_id, host_mno, plan_name, benefit_category, benefit_name, *,
-    value_won="", pay_won="", selectable=False, select_group="", detail="", source_url="",
+    value_won="", pay_won="", selectable=False, select_group="", condition="",
+    detail="", source_url="",
 ):
     """BENEFIT_COLUMNS 순서에 맞는 혜택 행 하나를 만든다. 크롤러마다 같은
     11개 키를 따로 손으로 채우던 걸 한 곳으로 모았다."""
@@ -487,6 +495,7 @@ def make_benefit_row(
         "user_pay_won": pay_won,
         "is_selectable": selectable,
         "select_group": select_group,
+        "benefit_condition": condition,
         "benefit_detail": detail,
         "source_url": source_url,
     }

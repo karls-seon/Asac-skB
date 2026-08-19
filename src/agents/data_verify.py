@@ -172,8 +172,17 @@ def cache_path_for(row: dict) -> Path | None:
     return None
 
 
+def _moyo_plan_id(row: dict) -> str | None:
+    """모요 목록 카드를 찍는 id. cache_path_for와 같은 규칙으로 URL에서 뽑는다."""
+    m = re.search(r"/plans/(\d+)", row.get("source_url", ""))
+    return m.group(1) if m else None
+
+
 def _plain_text(path: Path) -> str:
     raw = path.read_text(encoding="utf-8", errors="replace")
+    # 태그를 떼기 전에 카드 링크를 마커로 남긴다. 목록 페이지에서 **어느 카드가
+    # 어느 요금제인지**를 이름이 아니라 plan_id로 알 수 있는 유일한 단서다.
+    raw = re.sub(r'<a [^>]*href="/plans/(\d+)"', r" @plan\1 ", raw)
     text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.S)
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", text)
@@ -198,18 +207,26 @@ def _source_text(row: dict) -> str | None:
     상세페이지를 대조했더니 "7개월 이후 11,550원"이 거기 없어서 멀쩡한
     monthly_fee가 불일치로 잡혔다(수정이력 15번이 경고한 출처 불일치).
     """
-    # carrier_type이 아니라 plan_category로 갈라야 한다. 너겟/요고를 모요가
-    # 중개하는 행은 carrier_type이 MNO로 재분류돼 있지만(2026-08-06 수정)
-    # 값 자체는 여전히 crawl_moyo.py가 목록 카드에서 뽑는다. carrier_type으로
-    # 가르면 이런 행이 상세페이지로 새서 "정상가 59,000원"(상세)과 "6개월 이후
+    # carrier_type이 아니라 plan_category로 가른다. "어느 크롤러가 뽑았나"를
+    # 나타내는 건 plan_category뿐이고 carrier_type은 분류 정책에 따라 바뀐다 -
+    # 실제로 너겟/요고를 MNO로 재분류하던 시기(2026-08-06)에 carrier_type으로
+    # 갈랐다가 이런 행이 상세페이지로 새서 "정상가 59,000원"(상세)과 "6개월 이후
     # 34,000원"(목록 카드, 우리가 실제로 쓴 값)이 서로 다른 근거로 비교돼
-    # 멀쩡한 값이 불일치로 잡힌다(plan_id 29062로 실측).
+    # 멀쩡한 값이 불일치로 잡혔다(plan_id 29062로 실측).
     if row.get("plan_category") == "moyo":
+        pid = _moyo_plan_id(row)
+        marker = f"@plan{pid} " if pid else ""
         needle = re.sub(r"\s+", "", row.get("plan_name", ""))
-        if not needle:
+        if not marker and not needle:
             return None
-        for text in _moyo_list_text():
-            if needle in re.sub(r"\s+", "", text):
+        texts = _moyo_list_text()
+        # id가 든 페이지를 먼저 고른다. 이름으로 고르면 **동명 요금제**의 페이지가
+        # 잡힌다(37140 LTE 16,400원 vs 동명 5G "6개월 이후 19,900원", 2026-08-19).
+        for text in texts:
+            if marker and marker in text:
+                return text
+        for text in texts:
+            if needle and needle in re.sub(r"\s+", "", text):
                 return text
         return None
     path = cache_path_for(row)
@@ -225,6 +242,14 @@ def excerpt_for(row: dict) -> str | None:
     text = _source_text(row)
     if text is None:
         return None
+
+    # 모요는 카드 하나만 자른다. 이름으로 앵커해 앞뒤로 넓게 뜨면 이웃 카드 가격이
+    # 발췌에 섞여 LLM이 남의 요금을 읽는다(2026-08-19 19,900원 오탐).
+    pid = _moyo_plan_id(row) if row.get("plan_category") == "moyo" else None
+    at = text.find(f"@plan{pid} ") if pid else -1
+    if at >= 0:
+        end = text.find("@plan", at + 5)
+        return text[at:end] if end > 0 else text[at:at + CONTEXT_AFTER]
 
     flat, index_map = [], []
     for i, ch in enumerate(text):
@@ -491,22 +516,26 @@ def demo() -> None:
     )
     print(f"모요 출처 OK - 목록 카드에서 정상가 확인 ({moyo['plan_name']})")
 
-    # 너겟/요고처럼 모요가 중개하는 통신3사 상품은 carrier_type이 MNO로
-    # 재분류돼 있지만(2026-08-06 수정) 값 자체는 여전히 모요 목록 카드에서
-    # 온다. carrier_type으로 갈랐다가 실제로 정상가가 불일치로 잡혔었다
-    # (plan_id 29062, 상세페이지 "59,000원" vs 목록 카드 "34,000원").
-    reclassified = [r for r in final_rows
-                    if r.get("plan_category") == "moyo" and r.get("carrier_type") == "MNO"
-                    and not _is_synthesized_name(r)]
-    assert reclassified, "plan_category=moyo인데 carrier_type=MNO인 행이 없음"
-    r = next((r for r in reclassified if excerpt_for(r)), None)
-    assert r is not None, "재분류된 모요 행에서 발췌를 하나도 못 만듦"
-    flat = re.sub(r"\s+", "", excerpt_for(r))
-    assert re.sub(r"\s+", "", f"{int(float(r['monthly_fee'])):,}") in flat, (
-        f"carrier_type=MNO인 모요 행이 목록 카드가 아니라 상세페이지로 샘 "
-        f"({r['plan_name']})"
-    )
-    print(f"너겟/요고(모요 재분류) 출처 OK ({r['plan_name']})")
+    # 이름이 겹치는 요금제가 65쌍 있다. 이름으로 앵커하면 남의 카드를 잘라 온다
+    # (37140 LTE 16,400원 vs 동명 5G "6개월 이후 19,900원", 2026-08-19 오탐).
+    moyo_rows = [r for r in final_rows if r.get("plan_category") == "moyo"]
+    names = Counter(r["plan_name"] for r in moyo_rows)
+    dup = [r for r in moyo_rows
+           if names[r["plan_name"]] > 1 and not _is_synthesized_name(r)
+           and norm_money(r.get("monthly_fee"))]
+    assert dup, "이름이 겹치는 모요 행이 없음 - 이 검사가 아무것도 안 보고 있다"
+    checked = 0
+    for r in dup:
+        text = excerpt_for(r)
+        if text is None:
+            continue
+        checked += 1
+        assert f"{norm_money(r['monthly_fee']):,}" in re.sub(r"\s+", "", text), (
+            f"동명 요금제의 카드를 잘라 왔다 - plan_id로 앵커가 안 되고 있다 "
+            f"({r['plan_id']} {r['plan_name']}, {r['monthly_fee']}원)"
+        )
+    assert checked, "이름 중복 행에서 발췌를 하나도 못 만듦"
+    print(f"동명 요금제 {checked}건 - 각자 자기 plan_id 카드에서 정상가 확인")
 
     # 캐시 매핑 + 구간 추출: 4사 전부
     for site in ("KT", "SKT", "LGU+", "MVNO(모요)"):
