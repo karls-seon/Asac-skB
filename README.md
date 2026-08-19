@@ -41,6 +41,17 @@ python src/make_synthetic_mvno.py --check    # 자체 검증만
 
 근거 문서: `docs/합성데이터_생성근거.md`, `docs/컬럼_명세서.md`.
 
+## 멀티에이전트
+
+`src/multi_agent/` — 폴더 하나 = 팀원 한 명. 담당표·계약 규칙·실행법은
+`src/multi_agent/README.md` 참고.
+
+```bash
+cd src
+python -m multi_agent.orchestrator.main                # 그래프 1회 실행
+python -m multi_agent.orchestrator.test_orchestrator   # 배선 + 데이터 매핑 점검
+```
+
 ## 다음
 
-추천 설계 재작업 중.
+추천 로직 구현 중(노드는 아직 스텁).
