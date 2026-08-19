@@ -1,0 +1,112 @@
+app/
+├── orchestrator/
+│   ├── interfaces.py
+│   ├── dependencies.py
+│   │
+│   ├── nodes.py
+│   ├── routers.py
+│   ├── workflow.py              # 추천 Workflow
+│   │
+│   ├── update_nodes.py
+│   └── update_workflow.py       # 요금제 갱신 Workflow
+│
+├── schemas/
+│   ├── state.py                 # 추천 State
+│   ├── user_profile.py
+│   ├── recommendation.py
+│   └── plan_update.py           # 갱신 State / 결과 Schema
+│
+├── mocks/
+│   ├── default_user_analysis.py
+│   ├── default_recommender.py
+│   ├── default_validator.py
+│   ├── default_responder.py
+│   └── default_plan_updater.py  # 갱신용 Mock
+│
+├── repositories/
+│   └── plan_repository.py
+│
+├── bootstrap.py
+├── main.py
+└── update_main.py
+
+                [ Recommendation Workflow ]
+
+사용자
+  ↓
+User Analysis
+  ↓
+Plan Search ────────────────┐
+  ↓                          │
+Recommendation              │
+  ↓                          │
+Validation                   │
+  ↓                          │
+Response                     │
+                             │
+                         Plan DB
+                             ↑
+                             │
+                [ Plan Update Workflow ]
+                             │
+Scheduler / 관리자 실행      │
+  ↓                          │
+Plan Update Agent            │
+  ↓                          │
+3사 + 알뜰폰 크롤링          │
+  ↓                          │
+정규화                       │
+  ↓                          │
+신규 / 변경 / 종료 판별      │
+  ↓                          │
+DB Update ───────────────────┘
+ interfaces.py에 Agent별 Input/Output 계약을 정의
+
+User Analysis
+─────────────
+Input
+user_query: str
+
+Output
+UserProfile
+
+
+Recommendation
+─────────────
+Input
+UserProfile
+CandidatePlan[]
+
+Output
+RecommendationItem[]
+
+
+Validation
+─────────────
+Input
+UserProfile
+RecommendationItem[]
+
+Output
+ValidationResult
+
+
+Plan Update
+─────────────
+Input
+PlanRepository
+source list
+
+Output
+PlanUpdateResult
+
+
+Response
+─────────────
+Input
+UserProfile
+RecommendationItem[]
+ValidationResult
+
+Output
+str

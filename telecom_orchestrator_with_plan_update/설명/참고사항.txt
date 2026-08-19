@@ -1,0 +1,31 @@
+“각자 Agent를 만들 때 interfaces.py에서 본인 Agent의 함수 형태를 먼저 확인하고, schemas에서 입력과 출력 객체 구조를 확인해주세요. 내부 알고리즘은 자유롭게 구현하되 반환 타입은 반드시 공통 Schema에 맞춰주세요. State와 Router는 Orchestrator에서 관리할 거라 각 Agent는 자기 업무 결과만 반환하면 됩니다."
+
+User Analysis
+user_query → UserProfile
+
+Plan Search
+UserProfile → CandidatePlan[]
+
+Recommendation
+UserProfile + CandidatePlan[] → RecommendationItem[]
+
+Validation
+UserProfile + RecommendationItem[] → ValidationResult
+
+Response
+Recommendation + Validation → str
+
+Plan Update
+Repository + Sources → PlanUpdateResult
+
+팀원 Agent
+= 자기 업무 수행
+
+Node
+= Agent 실행 + 결과를 State에 저장
+
+Router
+= State 보고 다음 경로 판단
+
+Workflow
+= 전체 실행 순서 관리

@@ -43,14 +43,23 @@ python src/make_synthetic_mvno.py --check    # 자체 검증만
 
 ## 멀티에이전트
 
-`src/multi_agent/` — 폴더 하나 = 팀원 한 명. 담당표·계약 규칙·실행법은
-`src/multi_agent/README.md` 참고.
+`telecom_orchestrator_with_plan_update/` — LangGraph 오케스트레이터. 담당 구분은
+`OWNERSHIP.md`, 구조·계약 설명은 그 폴더의 `README.md` 참고.
+
+추천 Workflow와 요금제 갱신 Workflow가 분리돼 있고, 각 에이전트는 `app/mocks/`의
+baseline 구현으로 붙어 있다. 팀원 구현이 끝나면 `app/bootstrap.py`에서 교체한다.
 
 ```bash
-cd src
-python -m multi_agent.orchestrator.main                # 그래프 1회 실행
-python -m multi_agent.orchestrator.test_orchestrator   # 배선 + 데이터 매핑 점검
+cd telecom_orchestrator_with_plan_update
+pip install -r requirements.txt
+python -m app.main           # 추천 Workflow 1회 실행
+python -m app.update_main    # 요금제 갱신 Workflow 1회 실행
+pytest -q
 ```
+
+요금제 데이터는 현재 그 폴더의 `data/plans.csv`, `data/benefits.csv`(2026-08-11
+스냅샷 복사본)를 쓴다. `data/final/`의 일일 갱신본으로 바꾸려면
+`app/repositories/plan_repository.py`에 넘기는 경로만 바꾸면 된다.
 
 ## 다음
 

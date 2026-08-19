@@ -1,0 +1,4 @@
+langgraph>=0.2
+pydantic>=2.7
+pandas>=2.2
+pytest>=8.0

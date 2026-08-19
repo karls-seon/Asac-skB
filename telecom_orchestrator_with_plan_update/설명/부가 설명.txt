@@ -1,0 +1,90 @@
+Orchestrator
+
+“여러 Agent가 협업할 수 있도록 전체 실행 흐름을 관리하는 중앙 제어 역할입니다. 직접 요금제를 추천하거나 검증하는 것이 아니라, 현재 상황에 따라 어떤 Agent를 실행할지 결정하고 각 Agent의 결과를 다음 단계로 전달합니다.”
+
+그리고 아래 4가지가 구체적인 역할이야.
+
+역할	설명	우리 프로젝트 예시
+State	현재 작업 상태와 Agent 결과를 저장·전달	UserProfile, 후보 요금제, 추천 결과, 검증 결과 등을 저장
+Routing	현재 상태를 보고 다음에 실행할 Agent 결정	사용자 정보 부족 → 추가 질문 / 충분 → 요금제 검색
+Retry	실패했을 때 재실행 여부와 횟수 관리	Validation 실패 → 재추천, 단 최대 횟수 제한
+Workflow Control	전체 Agent의 실행 순서와 흐름 관리	분석 → 검색 → 추천 → 검증 → 응답
+
+예를 들어 실제 요청 하나로 설명하면 훨씬 좋아.
+
+사용자
+"KT망 알뜰폰 중
+3만원 이하,
+20GB 이상 추천해줘"
+        │
+        ▼
+┌────────────────────────────┐
+│        Orchestrator        │
+└────────────────────────────┘
+        │
+        ▼
+① User Analysis Agent 실행
+        │
+        ▼
+② State에 저장
+   budget = 30,000
+   data = 20GB
+   carrier = KT
+   type = MVNO
+        │
+        ▼
+③ Routing
+   정보가 충분한가?
+        │
+       YES
+        ▼
+④ Plan Search 실행
+        │
+        ▼
+⑤ Recommendation 실행
+        │
+        ▼
+⑥ Validation 실행
+        │
+     ┌──┴──┐
+   PASS    FAIL
+    │        │
+    ▼        ▼
+ Response   Retry
+            │
+            └──→ 재검색/재추천
+
+여기서 각각을 연결하면 돼.
+
+State는:
+
+“각 Agent가 처리한 결과를 공유 State에 저장해서 다음 Agent가 사용할 수 있도록 합니다.”
+
+Routing은:
+
+“현재 State를 확인해서 다음에 어떤 Agent를 실행할지 결정합니다.”
+
+예를 들어:
+
+정보 충분 → Plan Search
+정보 부족 → 추가 질문
+
+
+Validation PASS → Response
+Validation FAIL → 재추천
+
+Retry는:
+
+“추천 결과가 검증을 통과하지 못했을 때 바로 잘못된 결과를 반환하지 않고 재검색이나 재추천을 수행하며, 무한 반복을 막기 위해 최대 재시도 횟수도 관리합니다.”
+
+Workflow Control은:
+
+“User Analysis → Plan Search → Recommendation → Validation → Response와 같은 전체 Agent 실행 순서를 정의하고 관리합니다.”
+
+발표에서는 이렇게 한 번에 말하면 돼
+
+“Orchestrator는 각 Agent의 업무를 직접 수행하는 것이 아니라 전체 Agent 협업 과정을 제어하는 역할입니다. 각 Agent의 실행 결과는 State에 저장하고, 현재 State를 기준으로 Routing을 통해 다음 Agent를 결정합니다. 또한 Validation 실패와 같은 예외 상황에서는 Retry를 통해 재추천을 수행하고, 이러한 전체 실행 순서를 Workflow로 관리하도록 구성했습니다.”
+
+그리고 한 문장 더 붙이면 네 역할이 더 명확해져.
+
+“따라서 추천 알고리즘이나 사용자 분석 로직 자체는 각 담당 Agent가 구현하고, 저는 이 Agent들이 정해진 Interface와 Schema를 통해 안정적으로 연결되도록 Orchestration Layer를 구현하는 역할입니다.”
