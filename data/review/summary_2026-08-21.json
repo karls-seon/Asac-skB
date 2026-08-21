@@ -1,0 +1,31 @@
+{
+  "date": "2026-08-21",
+  "status": "applied",
+  "counts": {
+    "total_prev": 2766,
+    "total_new": 2759,
+    "신규": 0,
+    "단종": 7,
+    "범위이탈": 0,
+    "변경": 67
+  },
+  "by_site": {
+    "KT": {
+      "단종": 6,
+      "변경": 3
+    },
+    "SKT": {
+      "변경": 8
+    },
+    "LGU+": {
+      "단종": 1,
+      "변경": 56
+    },
+    "MVNO(모요)": {
+      "단종": 7,
+      "변경": 67
+    }
+  },
+  "guard_violations": [],
+  "changes_file": "data\\review\\changes_2026-08-21.csv"
+}
