@@ -26,7 +26,8 @@ web/dist/
 # data/review/changes_*.csv에 남으므로 전체 스냅샷까지 공유할 이유가 없다 (21MB).
 data/final/history/
 
-# 합성 고객 - make_synthetic_mvno.py가 고정 시드로 다시 만든다 (3.7MB)
+# 세그먼트 실험용 합성 고객 - 실험을 접으면서 생성 스크립트를 지웠다.
+# 남아 있는 로컬 파일(3.7MB)이 실수로 올라가지 않게 규칙만 유지한다.
 data/synthetic/
 # KISDI 원자료 - 신청해서 받은 자료라 재배포하지 않는다 (7.7MB)
 data/external/
