@@ -1,22 +1,17 @@
-"""
-SKT 요금제 + 혜택 크롤러 (셀레니움 불필요, 전부 공개 JSON API).
+"""SKT 요금제 + 혜택 크롤러 (전부 공개 JSON API, 셀레니움 불필요).
 
-tworld.co.kr은 화면만 JS로 그릴 뿐 데이터는 전부 JSON API로 내려온다.
-인증키는 필요 없고 **`referer` 헤더만 있으면** 된다 (없으면 401 "invalid request url").
+tworld.co.kr은 화면만 JS로 그리고 데이터는 JSON API로 내려온다. 인증키는 필요
+없고 **`referer` 헤더만 있으면** 된다(없으면 401 "invalid request url").
 
 쓰는 API 3종:
-1. /core-product/v1/product/mobile/plan-overall-list  - 전체 요금제 목록 + 기본 스펙
-2. /core-product/v1/ledger/{prodId}                    - 연령 제한 등 상품 속성 태그
-3. /core-product/v1/benefits/{prodId}/price-plan       - 혜택 상세 (OTT 선택 옵션 포함)
+1. /core-product/v1/product/mobile/plan-overall-list  - 목록 + 기본 스펙
+2. /core-product/v1/ledger/{prodId}                   - 연령 제한 등 속성 태그
+3. /core-product/v1/benefits/{prodId}/price-plan      - 혜택 상세
 
-3번이 혜택의 핵심이다. prodBenfFrndExpsPhrs(혜택 상세 문구) 안에 작은따옴표로
-선택형 옵션이 들어있다.
-  예: "T 우주 'YouTube Premium' 또는 T 우주 'YouTube Premium Lite & 배달의민족'
-      가입 시 월 1,000원부터 이용 가능합니다"
-  -> 옵션 2개를 각각 별도 혜택 행으로 분해한다.
+3번이 혜택의 핵심이다. prodBenfFrndExpsPhrs 안에 작은따옴표로 선택형 옵션이
+들어있어("T 우주 'YouTube Premium' 또는 …") 옵션마다 별도 혜택 행으로 분해한다.
 
-원본은 data/raw_cache/skt/ 아래에 page_N.json / ledger_{id}.json / benefit_{id}.json으로
-저장하고, 파싱은 캐시만 읽는다(`--parse-only`).
+원본은 data/raw_cache/skt/에 저장하고 파싱은 캐시만 읽는다(`--parse-only`).
 """
 import html
 import json
@@ -44,10 +39,8 @@ BENEFIT_API = f"{BASE}/core-product/v1/benefits/{{prod_id}}/price-plan"
 # 들어있다("영상/부가통화 제공량 소진 시 부가통화 초당 1.98원, 영상통화 초당 3.3원").
 # ledger 응답에는 없어서 별도로 받아야 한다.
 CONTENTS_API = f"{BASE}/core-product/v1/ledger/{{prod_id}}/contents"
-# 카테고리별 요금제 묶음. 목록 API(plan-overall-list)는 idxCtgCd=F01100(전체)만
-# 받아서 카테고리 구분 없이 평면으로 내려주는데, 사이트는 실제로
-# "전체 요금제 > 베스트/라이트/전용/스마트기기/다이렉트" 2단으로 나눠 보여준다.
-# 그 분류를 여기서 따로 받아 plan_category에 채운다.
+# 카테고리별 요금제 묶음. 목록 API는 카테고리 구분 없이 평면으로 내려주는데
+# 사이트는 2단으로 나눠 보여준다. 그 분류를 따로 받아 plan_category에 채운다.
 GROUP_API = f"{BASE}/core-product/v1/submain/grp-prcplns"
 LIST_REFERER = f"{BASE}/web/product/plan/list?filters=all"
 
@@ -59,9 +52,7 @@ HEADERS = {
 }
 CACHE_DIR = cache_dir("skt")
 AGE_FILTER_GROUP = "F01160"  # prodFilterFlagList에서 연령 제한 카테고리
-# 같은 prodFilterFlagList에 망/기기 종류도 들어있다. 목록 API에는 이 정보가 없어서
-# 예전에는 network_gen을 "5G"로 하드코딩했는데, 실제로는 3G 29개, 선불폰 12개,
-# 태블릿 11개가 5G로 위장돼 있었다. 여기서 실제 값을 읽는다.
+# 망/기기 종류도 같은 prodFilterFlagList에 있다. 목록 API에는 없어서 여기서 읽는다.
 NETWORK_FILTER_GROUP = "F01120"
 # 이 그룹의 prodFltNm 중 망 세대가 아닌 것들(기기/가입형태 구분)
 NON_NETWORK_FLAGS = {"선불폰", "태블릿/스마트 기기"}
@@ -74,22 +65,13 @@ ALL_CATEGORIES = {
     "F02089": "스마트기기",    # 워치·태블릿·함께쓰기/투넘버
     "F02101": "다이렉트",     # T다이렉트샵 전용
 }
-# 수집 범위는 **휴대폰 요금제**다. 카테고리 단위로 받되, "전용"만은 한 카테고리
-# 안에 성격이 완전히 다른 그룹들이 섞여 있어서(3G 24 · 선불폰 12 · 연령특화 8 ·
-# 복지 4 · 외국인 4 · 기본/표준 3) 그룹 단위로 고른다.
-#
-# 연령 전용(ZEM플랜·시니어 등)은 가입 자격만 다를 뿐 스펙 구조가 일반 요금제와
-# 같아서 포함한다. 반면 3G·선불폰은 종량 과금이고 스마트기기는 보조회선이라 뺀다.
-#   스마트기기 : 워치·태블릿·함께쓰기/투넘버
-#   다이렉트  : 온라인 전용 채널 상품
-# "다이렉트"는 SKT의 온라인 전용 라인이다(0 청년 다이렉트 34/48/55/62/69 등 31개).
-# KT는 "온라인전용(요고)"를, LGU+는 "너겟"을 수집하는데 SKT만 빠져 있어서 3사
-# 비교가 비대칭이었다. 모요를 통해 일부가 들어오긴 했지만 모요는 가입 연령을
-# 적지 않아 `만 34세 이하` 같은 조건이 통째로 유실됐다(docs/수정이력.md 38번).
+# 수집 범위는 **휴대폰 요금제**다. 카테고리 단위로 받되 "전용"만은 성격이 다른
+# 그룹이 섞여 있어(3G 24 · 선불폰 12 · 연령특화 8 · 복지 4 · 외국인 4 · 기본/표준 3)
+# 그룹 단위로 고른다. 3G·선불폰은 종량 과금이고 스마트기기는 보조회선이라 뺀다.
+# "다이렉트"는 SKT의 온라인 전용 라인으로, KT 요고·LGU+ 너겟과 짝을 맞추려고 넣는다.
 COLLECTED_CATEGORIES = {"베스트", "라이트", "다이렉트"}
-# (카테고리, 그룹) 단위로 추가 수집할 것. 카테고리 전체를 받기엔 섞임이 심한 경우.
 COLLECTED_GROUPS = {
-    ("전용", "연령특화"),      # ZEM플랜 3 · 주말엔 팅 2 · 5G 시니어 2 · T끼리 어르신
+    ("전용", "연령특화"),      # ZEM플랜 · 주말엔 팅 · 5G 시니어 · T끼리 어르신
     ("전용", "기본/표준"),     # T플랜 세이브 · 뉴 T끼리 맞춤형 · 표준요금제
 }
 
@@ -98,7 +80,7 @@ def _selective_discount(item: dict, fee: int) -> str | int:
     """선택약정 25% 적용가. 할인 대상이 아니면 빈값.
 
     SKT는 할인 대상이 아닌 요금제에 `selAgrmtAplyMfixAmt = "0"`을 준다. "공짜"가
-    아니라 "해당 없음"이다. 정가보다 크거나 같은 값이 오는 경우도 할인이 아니다.
+    아니라 "해당 없음"이다.
     """
     sel = _to_int(item.get("selAgrmtAplyMfixAmt"))
     return sel if sel and fee and sel < fee else ""
@@ -173,11 +155,9 @@ def fetch_all():
             print(f"  {i}/{len(prod_ids)}")
 
 
-# ---------------- 파싱 ----------------
-
 def _strip_html(text: str) -> str:
-    # 엔티티도 함께 풀어야 한다. 안 풀면 본문에는 "티빙&amp;웨이브"가 남고
-    # 요금제명은 "티빙&웨이브"여서, 표에서 자기 행을 찾는 매칭이 조용히 실패한다.
+    # 엔티티도 풀어야 한다. 안 풀면 본문의 "티빙&amp;웨이브"와 요금제명
+    # "티빙&웨이브"가 달라서 표에서 자기 행을 찾는 매칭이 조용히 실패한다.
     return html.unescape(re.sub(r"<[^>]+>", "", text or "")).strip()
 
 
@@ -216,38 +196,21 @@ def _contents_text(prod_id: str) -> str:
     return re.sub(r"\s+", " ", " ".join(parts))
 
 
-# ---------------- 연령 혜택 (청소년 / 청년 / 시니어) ----------------
+# SKT는 KT의 "덤"처럼 연령별 표를 따로 주지 않고 상세 페이지 본문에 섞어 놓는다.
+# 형태가 두 가지다.
 #
-# SKT는 KT의 "덤"처럼 연령별 표를 따로 주지 않고, 상세 페이지 본문에 섞어 놓는다.
-# 확인된 형태가 세 가지다.
-#
-#  (요약) "연령에 따라 추가 혜택을 더 받을 수 있어요
-#           청년 혜택(만 34세 이하) 커피/영화/로밍 50% 할인
-#           청소년(만 18세 이하) 기본 데이터 1.5GB 추가 제공
-#           청년(만 19세~34세)  기본 데이터 1GB 추가 제공
-#           시니어 혜택(만 65세 이상) 기본 데이터 1.5GB 추가 제공
-#          연령에 따라 자동으로 추가 혜택이 제공됩니다."
-#         -> **라벨별로 값이 다르다.** 라벨을 무시하고 본문 전체에서 첫 매치를 집으면
-#            청소년 값(1.5GB)을 청년 값(1GB)으로 잘못 기록한다. 이 블록이 요금제별
-#            연령 혜택의 권위 있는 출처이므로, 라벨로 쪼갠 뒤 각각 파싱한다.
-#
-#  (표1)  "청년 혜택 안내표 … 요금제 | 기본 공유/테더링 데이터 한도 |
-#          청년(만 34세 이하) 공유/테더링 데이터 한도
-#          베스트 Max(T 우주) 140GB 160GB …"      (베스트 계열)
-#  (표2)  "기본 제공 데이터 추가 제공 안내표 … 기본 | 청소년(만 18세 이하) |
-#          청년(만 19세~34세)   라이트 79 250GB + 최대 5Mbps 300GB + 최대 5Mbps"
-#         -> 둘 다 여러 요금제가 함께 나열되므로 **자기 이름의 행**을 찾아야 하고,
-#            표 구간을 안 좁히면 다른 표(기본 제공량 등)를 잘못 집는다.
-#            표 형식은 청소년·청년 값이 같아(셀 병합) 우산 라벨 하나로 충분하다.
-#
-# 라벨을 세분하지 않는 경우가 대부분(우산 라벨 "만 34세 이하"만 쓰는 요금제 39개)이고,
-# 세분 표기는 3개 요금제에만 있다.
+#  (요약) "연령에 따라 추가 혜택을 더 받을 수 있어요 / 청소년(만 18세 이하) 기본
+#         데이터 1.5GB 추가 제공 / 청년(만 19세~34세) 기본 데이터 1GB 추가 제공 …"
+#         -> **라벨별로 값이 다르다.** 라벨을 무시하고 첫 매치를 집으면 청소년 값을
+#            청년 값으로 잘못 기록하므로 라벨로 쪼갠 뒤 각각 파싱한다.
+#  (표)   "청년 혜택 안내표 …", "기본 제공 데이터 추가 제공 안내표 …"
+#         -> 여러 요금제가 함께 나열되므로 **자기 이름의 행**을 찾아야 하고, 표
+#            구간을 안 좁히면 다른 표를 잘못 집는다. 청소년·청년 값이 셀 병합으로
+#            같아서 우산 라벨 하나로 충분하다.
 UMBRELLA_AGE = "만 34세 이하"
-# 본문 표기 -> 우리가 쓸 age_condition 값.
-# 값은 schema.normalize_age_condition과 같은 "만 N세 이하/이상" 형태로 통일한다
-# (KT "청년(Y덤)" / LGU+ "만 19세 ~ 35세 미만"과 같은 값이 되도록).
-# "청년(만 19세~34세)"도 상한이 같아 우산 라벨과 같은 값이 된다 - 한 요금제가
-# 둘 다 제공량 증가를 갖는 경우는 없어서 행이 겹치지 않는다.
+# 본문 표기 -> age_condition 값. KT/LGU+와 같은 "만 N세 이하/이상"으로 통일한다.
+# "청년(만 19세~34세)"도 상한이 같아 우산 라벨과 같은 값이 된다 - 한 요금제가 둘 다
+# 제공량 증가를 갖는 경우는 없어서 행이 겹치지 않는다.
 _AGE_LABELS = {
     "청년 혜택(만 34세 이하)": UMBRELLA_AGE,
     "청소년(만 18세 이하)": "만 18세 이하",
@@ -264,14 +227,12 @@ _AGE_TABLES = (
     (re.compile(r"청년\s*혜택\s*안내표"), "extra_tethering_gb"),
     (re.compile(r"기본\s*제공\s*데이터\s*추가\s*제공\s*안내표"), "extra_data_gb"),
 )
-# "커피/영화/로밍 50% 할인"처럼 데이터와 무관한 연령 혜택 문구.
-# 항목별로 따로 찾으면 같은 문구를 "커피/영화/로밍…", "영화/로밍…", "로밍…"으로
-# 세 번 잡아 혜택이 3배로 부풀었다. 슬래시로 묶인 목록을 통째로 한 번에 잡는다.
+# "커피/영화/로밍 50% 할인"처럼 데이터와 무관한 연령 혜택 문구. 항목별로 찾으면
+# 같은 문구를 세 번 잡아 혜택이 3배로 부푸므로 슬래시 목록을 통째로 잡는다.
 _AGE_PERK_RE = re.compile(
     r"((?:[가-힣]+/)*(?:커피|영화|로밍)(?:/[가-힣]+)*\s*\d+\s*%\s*할인)")
-# 시니어 혜택은 제공량이 아니라 "집전화/이동전화 무제한(영상 200분/부가 300분)"처럼
-# 음성 무제한 전환으로 오는 경우가 있다. 분 수는 base/extra 3단 컬럼이 없으므로
-# 혜택 행 문구로 남기고, 요금제 행에는 무제한 플래그만 반영한다.
+# 시니어 혜택은 "집전화/이동전화 무제한(영상 200분/부가 300분)"처럼 음성 무제한
+# 전환으로 오기도 한다. 분 수는 3단 컬럼이 없어 혜택 행 문구로만 남긴다.
 _AGE_VOICE_RE = re.compile(r"(집전화/이동전화\s*무제한(?:\s*\([^)]*\))?)")
 # 요금제 자체가 연령 전용인지 판단(age_condition에는 "복지" 같은 비연령 자격도 온다)
 _AGE_RESTRICTED_RE = re.compile(r"만\s*\d+\s*세")
@@ -365,10 +326,9 @@ def _age_condition(prod_id: str) -> str:
 def _load_categories() -> dict:
     """prodId -> (카테고리, 그룹).
 
-    카테고리 API는 그룹의 **대표 상품만** 준다(베스트는 27개 중 10개만 나온다).
-    나머지는 ledger의 repProdId로 같은 상품군에 묶이므로, 대표가 속한 카테고리를
-    상품군 전체에 퍼뜨린다. 이렇게 하면 133개 중 123개가 채워지고, 남는 10개는
-    포켓파이·IoT·T login처럼 사이트 카테고리 어디에도 안 걸린 레거시 상품이다.
+    카테고리 API는 그룹의 **대표 상품만** 준다(베스트는 27개 중 10개). 나머지는
+    ledger의 repProdId로 같은 상품군에 묶이므로 대표의 카테고리를 상품군 전체에
+    퍼뜨린다. 남는 10개는 포켓파이·IoT처럼 사이트 카테고리에 없는 레거시 상품이다.
     """
     path = os.path.join(CACHE_DIR, "categories.json")
     if not os.path.exists(path):
@@ -434,25 +394,19 @@ _GENERIC_TAIL_RE = re.compile(r"\s*(?:혜택|서비스)\s*$")
 
 
 def _merge_name_summary(name: str, summary: str) -> str:
-    """
-    SKT의 prodBenfNm은 "스마트기기"/"로밍"/"영화"/"커피"처럼 짧고 뜬금없어서,
-    prodBenfExpsPhrs(요약 문구: "50% 할인", "2회선 이용요금 무료")를 붙여야
-    "커피 50% 할인"처럼 무슨 혜택인지 알 수 있다.
+    """prodBenfNm은 "커피"/"로밍"처럼 짧아서 요약 문구("50% 할인")를 붙여야 무슨
+    혜택인지 알 수 있다.
 
-    문제는 둘이 상당 부분 겹치는 경우다. 단순히 이어붙이면
-      "T 우주 Netflix 스탠다드" + "넷플릭스 스탠다드 제공"
-      -> "T 우주 Netflix 스탠다드 넷플릭스 스탠다드 제공"
-    처럼 같은 말이 두 번 나온다. 특히 name은 영문(Netflix), summary는 한글
-    (넷플릭스)이라 글자로만 비교하면 겹치는 걸 못 알아본다. 그래서 표기를
-    통일한 뒤(canonical_spelling) 비교하고, 겹치지 않는 부분만 덧붙인다.
+    그냥 이어붙이면 겹치는 경우가 문제다("T 우주 Netflix 스탠다드" + "넷플릭스
+    스탠다드 제공"). name은 영문, summary는 한글이라 글자로 비교하면 못 알아보므로
+    canonical_spelling으로 표기를 통일한 뒤 비교하고 안 겹치는 부분만 덧붙인다.
     """
     if not (name and summary):
         return name or summary
 
     name_c = canonical_spelling(name)
     summary_c = canonical_spelling(summary)
-    # "스마트기기 할부금 할인 혜택" vs "스마트기기 할부금 할인(월 최대 …)" 처럼
-    # 끝의 "혜택"만 다른 경우를 겹치는 것으로 보기 위해 떼고 비교한다.
+    # 끝의 "혜택"만 다른 경우를 겹치는 것으로 보려고 떼고 비교한다.
     name_core = _GENERIC_TAIL_RE.sub("", name_c)
 
     if name_core in summary_c:
@@ -525,9 +479,8 @@ def parse_all() -> tuple[list[dict], list[dict]]:
                 continue
             seen.add(pid)
 
-            # 목록 API는 카테고리 구분 없이 전부(147개) 내려주므로, 수집 대상
-            # 카테고리에 속한 것만 남긴다. 매핑이 없는 요금제(포켓파이·IoT 등
-            # 사이트 카테고리 어디에도 없는 레거시 상품)도 여기서 걸러진다.
+            # 목록 API는 카테고리 구분 없이 전부 내려주므로 수집 대상만 남긴다.
+            # 매핑이 없는 레거시 상품(포켓파이·IoT)도 여기서 걸러진다.
             category, group = categories.get(pid, ("", ""))
             if not _in_scope(category, group):
                 continue
@@ -543,17 +496,15 @@ def parse_all() -> tuple[list[dict], list[dict]]:
 
             data_text = item.get("basOfrGbDataQtyCtt", "")
             is_unlimited = data_text == "무제한"
-            # 소용량 요금제는 데이터가 GB 필드가 아니라 MB 필드로만 온다
-            # (예: "주말엔 팅 세이브"=800, "T끼리 어르신"=400 - 단위 표기 없는 순수
-            # 숫자, MB 기준). GB 필드만 보면 이런 요금제의 data_gb가 전부 빈값이
-            # 됐었다. "함께쓰기"처럼 숫자가 아닌 값(데이터 나눠쓰기 부가상품)도
-            # 섞여 있어서 숫자인지 먼저 확인한다.
+            # 소용량 요금제는 데이터가 GB 필드가 아니라 MB 필드로만 온다(단위 없는
+            # 순수 숫자). "함께쓰기"처럼 숫자가 아닌 값도 섞여 있어 먼저 확인한다.
             mb_text = (item.get("basOfrMbDataQtyCtt") or "").strip()
             data_gb_mb_fallback = round(int(mb_text) / 1024, 3) if mb_text.isdigit() else None
             voice_text = item.get("basOfrVcallTmsCtt", "")
             voice_unlimited = voice_text == "무제한"
             sms_text = item.get("basOfrCharCntCtt", "")
             sms_unlimited = sms_text == "기본제공"
+            sel_fee = _selective_discount(item, fee)
 
             plan = {
                 "carrier_type": "MNO",
@@ -562,11 +513,9 @@ def parse_all() -> tuple[list[dict], list[dict]]:
                 "plan_id": pid,
                 "plan_id_type": "official_code",
                 "plan_name": plan_name,
-                # 그룹명(prodGrpNm)은 붙이지 않는다. 카테고리 API가 그룹 대표만
-                # 주기 때문에 나머지는 대표의 그룹명을 물려받는데, 그러면
-                # "베스트 Max(넷플릭스)"가 대표(유튜브 프리미엄)의 그룹인
-                # "AI + OTT 혜택"으로 잘못 붙는다. 카테고리는 상품군 전체가
-                # 공유하므로 그 층위까지만 신뢰한다.
+                # 그룹명(prodGrpNm)은 안 붙인다. 카테고리 API가 그룹 대표만 줘서
+                # 나머지가 대표의 그룹명을 물려받으면 "베스트 Max(넷플릭스)"가
+                # "AI + OTT 혜택" 그룹으로 잘못 붙는다. 카테고리 층위까지만 믿는다.
                 "plan_category": f"SKT-{category}",
                 "is_online_only": "다이렉트" in plan_name,
                 "age_condition": normalize_age_condition(_age_condition(pid)),
@@ -582,12 +531,11 @@ def parse_all() -> tuple[list[dict], list[dict]]:
                 "sms_unlimited": sms_unlimited,
                 "sms_count": "" if sms_unlimited else _to_int(re.sub(r"[^\d]", "", sms_text) or "") or "",
                 "monthly_fee": fee,
-                # 온라인전용(다이렉트)은 무약정 자급제형이라 선택약정 할인 대상이
-                # 아니고, API가 `selAgrmtAplyMfixAmt`에 **0을 준다**. 그대로 쓰면
-                # "0원 요금제" 31개가 생겨 추천 맨 위를 차지한다. KT 요고·LGU+
-                # 너겟도 같은 이유로 비워 둔다(crawl_kt.py의 is_online_only 분기).
-                "discounted_fee": _selective_discount(item, fee),
-                "discount_type": "선택약정 25% 할인" if _selective_discount(item, fee) else "",
+                # 온라인전용(다이렉트)은 무약정이라 선택약정 할인 대상이 아닌데 API가
+                # `selAgrmtAplyMfixAmt`에 0을 준다. 그대로 쓰면 "0원 요금제" 31개가
+                # 생겨 추천 맨 위를 차지한다(_selective_discount가 거른다).
+                "discounted_fee": sel_fee,
+                "discount_type": "선택약정 25% 할인" if sel_fee else "",
                 "discount_period_months": "",
                 "source_url": source_url,
                 "crawled_at": now,
@@ -600,14 +548,11 @@ def parse_all() -> tuple[list[dict], list[dict]]:
                 plan_rows.append(variant)
                 benefit_rows.extend(variant_benefits)
 
-            # 연령 혜택으로 **스펙이 실제로 달라지는** 것만 연령 변형 행을 따로 만든다
-            # (KT 덤과 같은 방식). 커피/영화 할인만 있는 요금제는 스펙이 그대로여서
-            # 행을 늘리면 같은 스펙 두 줄이 되므로, 혜택 행으로만 남긴다.
-            # 이미 연령 제한이 걸린 요금제(예: "0 청년 다이렉트"는 34세 이하 전용,
-            # ZEM플랜은 키즈 전용)는 그 자체가 연령 상품이므로 또 나누지 않는다.
-            # age_condition에는 "복지"처럼 연령이 아닌 가입 자격도 들어오므로,
-            # 값이 있다고 다 건너뛰면 안 된다("소리누리"는 복지 요금제인데 시니어
-            # 혜택이 따로 있다). "만 N세"가 적힌 것만 연령 상품으로 본다.
+            # 연령 혜택으로 **스펙이 실제로 달라지는** 것만 변형 행을 만든다(KT 덤과
+            # 같은 방식). 커피/영화 할인만 있으면 같은 스펙 두 줄이 될 뿐이다.
+            # 이미 연령 전용인 요금제는 또 나누지 않는다. 단 age_condition에는
+            # "복지"처럼 연령 아닌 자격도 오므로("소리누리"는 복지인데 시니어 혜택이
+            # 있다) "만 N세"가 적힌 것만 연령 상품으로 본다.
             if _AGE_RESTRICTED_RE.search(plan["age_condition"] or ""):
                 continue
             for age in ages:

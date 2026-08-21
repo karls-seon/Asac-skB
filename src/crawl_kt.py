@@ -1,17 +1,10 @@
-"""
-KT 요금제 전체 크롤러.
+"""KT 요금제 전체 크롤러.
 
-기존 kt_pipeline.ipynb는 ItemCode 6개(초이스/초이스더블/베이직/베이직이월/음성/요고)를
-하드코딩해서 썼는데, 실제로는 KT 모바일 요금제 페이지(product.kt.com)에
-5개 탭(통합요금제/온라인전용(요고)/키즈·외국인/태블릿·스마트워치/기타)이 있고
-그 밑에 ItemCode가 34개 있다. 하드코딩된 6개 중에서도 1567(요고)은 노트북에서
-"파서 없음"으로 스킵되고 있었다.
-
-탭별 ItemCode 목록은 화면에 안 보이고 브라우저가 아래 AJAX를 호출해서 채운다
-(devtools network 탭에서 확인):
+product.kt.com 모바일 요금제 페이지에 탭이 5개 있고 그 밑에 ItemCode가 34개 있다.
+탭별 ItemCode 목록은 화면에 안 보이고 브라우저가 아래 AJAX로 채운다.
   GET /wDic/getOptionItemListAjax.ajax?cate_code=6002&pageNo=1&listSize=N&filter_code=F&option_code=O
-탭 <-> (filter_code, option_code) 매핑은 각 탭을 눌러보며 확인한 값이라
-KT가 사이트 구조를 바꾸면 깨질 수 있음.
+탭 <-> (filter_code, option_code) 매핑은 각 탭을 눌러보며 확인한 값이라 KT가
+사이트 구조를 바꾸면 깨진다.
 """
 import json
 import os
@@ -31,22 +24,16 @@ from schema import (
 HEADERS = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest"}
 CATE_CODE = "6002"
 CACHE_DIR = cache_dir("kt")
-# (탭 이름, filter_code, option_code)
-#
-# 수집 범위는 **휴대폰 요금제**다. 연령 전용(키즈 등)은 가입 자격만 다를 뿐
-# 스펙 구조가 일반 요금제와 같아서 포함한다 - age_condition으로 구분되므로
-# 필요할 때 걸러 쓰면 된다. 반면 태블릿/워치·3G·선불폰은 음성/문자가 없거나
-# 종량 과금이라 스펙 구조 자체가 달라서 뺀다.
+# (탭 이름, filter_code, option_code). 수집 범위는 휴대폰 요금제다. 안 받는 탭:
 #   - 태블릿/워치(189,258) : 보조회선 상품
-#   - 기타(190,259)        : 구형 3G·피처폰·선불 모음. 값 이상 신고가 몰렸던 탭
-#   - 전체(191,260)        : 위 5개 탭의 합집합일 뿐 별도 상품이 없음(ItemCode 34개 동일)
+#   - 기타(190,259)        : 구형 3G·피처폰·선불 모음
+#   - 전체(191,260)        : 위 5개 탭의 합집합일 뿐 별도 상품이 없음
 TABS = [
     ("통합요금제", 186, 255),
     ("온라인전용(요고)", 187, 256),
     ("키즈/외국인", 188, 257),
 ]
-# 캐시에 예전 범위(5개 탭)로 받아둔 ItemCode가 남아 있어도 파싱 단계에서 다시
-# 걸러낸다. 그래야 --parse-only만 돌려도 지금 범위가 그대로 반영된다.
+# 캐시에 예전 범위로 받아둔 ItemCode가 남아 있어도 파싱 단계에서 다시 걸러낸다.
 COLLECTED_TABS = {name for name, _f, _o in TABS}
 
 
@@ -102,15 +89,12 @@ def fetch_combined_html(item_code: str) -> str:
         except Exception:
             pass
 
-    # 2026-08 개편: 연령별 요금표(tableHTML)가 페이지 안의 <script>에서
-    # **외부 JS 파일**로 빠졌다(예: /static/prodetail/1693/web/js/data/w_basic_data.js).
-    # 이걸 안 받아오면 그 상품의 요금제가 통째로 0건이 된다 - 실제로 초이스·
-    # 초이스더블·베이직·베이직(이월) 4개가 이렇게 사라졌었다(docs/수정이력.md 35번).
-    # 파일명이 상품마다 다르므로(w_choice_data / w_basic_carry_over_data …) 이름을
-    # 하드코딩하지 않고 `js/data/*.js` 경로 패턴으로 찾는다.
-    #
-    # **앞서 붙인 조각까지 포함한** combined_html에서 찾아야 한다. 이 script 태그는
-    # 상세 페이지 본문이 아니라 htmlUploadType 조각 안에 들어있는 경우가 있다.
+    # 2026-08 개편으로 연령별 요금표(tableHTML)가 페이지 <script>에서 외부 JS
+    # 파일로 빠졌다. 안 받아오면 그 상품의 요금제가 통째로 0건이 된다(초이스 등
+    # 4개가 이렇게 사라졌었다. docs/수정이력.md 35번). 파일명이 상품마다 다르므로
+    # `js/data/*.js` 경로 패턴으로 찾는다. **앞서 붙인 조각까지 포함한**
+    # combined_html에서 찾아야 한다 - 이 script 태그가 htmlUploadType 조각 안에
+    # 들어있는 경우가 있다.
     for src in dict.fromkeys(re.findall(r'<script[^>]+src="([^"]*?/js/data/[^"]+\.js)"', combined_html)):
         try:
             combined_html += "\n" + _get(f"https://product.kt.com{src}")
@@ -119,15 +103,10 @@ def fetch_combined_html(item_code: str) -> str:
     return combined_html
 
 
-# ---------- 표(table) 파싱: rowspan/colspan 대응 ----------
-
-# 셀 안의 <li> 경계를 표시하는 구분자.
-# 원래는 <li>들을 " / "로 이어붙였는데, 그러면 "택1" 선택지를 다시 뽑을 때
-# 문제가 생긴다. 선택지 이름 자체에 "/"가 들어가는 경우가 있기 때문이다
-# (예: 초이스 택1의 <li> 하나가 통째로 "티빙/지니/밀리" - KT 원문도 이걸
-# "초이스 티빙/지니/밀리"라는 하나의 상품으로 부른다). "/"로 다시 쪼개면
-# 옵션 9개짜리가 11개로 부풀고, 존재하지 않는 "티빙" 단독 상품이 생긴다.
-# HTML 텍스트에 절대 나올 수 없는 제어문자를 써서 <li> 경계만 정확히 보존한다.
+# 셀 안의 <li> 경계를 표시하는 구분자. " / "로 이어붙이면 선택지 이름 자체에
+# "/"가 든 경우("티빙/지니/밀리"는 KT 원문에서도 하나의 상품)를 다시 쪼갤 때
+# 옵션 9개가 11개로 부풀고 존재하지 않는 "티빙" 단독 상품이 생긴다.
+# HTML 텍스트에 나올 수 없는 제어문자로 경계를 보존한다.
 LI_SEP = "\x1f"
 
 
@@ -137,8 +116,8 @@ def _disp(text: str) -> str:
 
 
 def extract_tablehtml_by_age(page_html: str) -> dict:
-    # 'school'(스쿨덤)을 빠뜨리고 있었음 - 캐시된 HTML 전수 조사로 확인한 키 4개
-    # (y/school/65/75) + base. KT가 새 연령군을 추가하면 여기도 늘려야 함.
+    # 캐시 전수 조사로 확인한 연령 키 4개(y/school/65/75) + base.
+    # KT가 새 연령군을 추가하면 여기도 늘려야 한다.
     pattern = re.compile(r"""(base|y|school|'65'|'75')\s*:\s*\{.*?tableHTML\s*:\s*'([^']*)'""", re.DOTALL)
     return {key.strip("'"): html_str for key, html_str in pattern.findall(page_html)}
 
@@ -189,14 +168,9 @@ def flatten_headers(header_rows):
     n_cols = max(len(r) for r in header_rows)
     cols = []
     for c in range(n_cols):
-        # 이 컬럼 자신의 상/하위 라벨끼리만 중복 제거한다. 예전엔 "r[c] not in
-        # cols"로 **이미 확정된 다른 컬럼의 이름**과 비교했는데, "65+덤 혜택" 밑에
-        # "음성"/"문자" 서브컬럼이 있는 표에서 앞쪽에 이미 "음성"/"문자"라는
-        # 단독 컬럼이 있으면 그 텍스트가 필터링돼 하위 라벨이 조용히 사라졌다
-        # (예: "65+덤 혜택_음성"이 돼야 할 게 그냥 "65+덤 혜택"이 되고, 그 다음
-        # "65+덤 혜택_문자"는 상/하위 라벨 둘 다 걸러져 빈 이름이 돼 "col6" 같은
-        # 임시 이름을 받았다 - 음성18.7 요금제의 65+/75+덤 음성·문자 보너스가
-        # 통째로 유실됐었다). 컬럼마다 독립적으로 판단해야 한다.
+        # 이 컬럼 자신의 상/하위 라벨끼리만 중복 제거한다. 다른 컬럼의 확정된
+        # 이름과 비교하면, 앞쪽에 단독 "음성" 컬럼이 있을 때 "65+덤 혜택_음성"의
+        # 하위 라벨이 조용히 사라진다(음성18.7의 65+/75+덤 보너스가 유실됐었다).
         parts = [r[c] for r in header_rows if c < len(r) and r[c]]
         cols.append("_".join(dict.fromkeys(parts)) if parts else f"col{c}")
     return cols
@@ -220,9 +194,8 @@ def get_plan_rows_by_age(page_html: str) -> dict:
         return {age: table_to_rows(html) for age, html in by_age.items()}
 
     soup = BeautifulSoup(page_html, "html.parser")
-    # 페이지마다 요금제 표의 class명이 다르다(N-pdt-tbl-plan / pduct-tbl-plan / table-plan 등
-    # 확인됨, 앞으로도 더 있을 수 있음). class명으로 찾지 못하면 "월정액" 헤더가 있는
-    # <table>을 찾는 방식으로 대체한다.
+    # 페이지마다 요금제 표의 class명이 다르다. 못 찾으면 "월정액" 헤더가 있는
+    # <table>로 대체한다.
     static_table = (
         soup.find("table", class_="N-pdt-tbl-plan")
         or soup.find("table", class_="pduct-tbl-plan")
@@ -238,19 +211,13 @@ def get_plan_rows_by_age(page_html: str) -> dict:
     return {}
 
 
-# ---------- 음성/문자 파싱 ----------
+# 음성/문자 컬럼 헤더가 표마다 제각각이다. 확인된 것만:
+#   "음성" / "문자" / "음성/문자" / "음성/문자 (영상/부가)"
+#   "기본 제공_음성" / "문자_기본 제공" / "제공(월)" / "제공량(월)"
+# 정확히 "음성"/"문자"만 보면 원문에 "200분/200건"이 적힌 요금제가 통째로 빈다.
 #
-# 요금제명과 마찬가지로 음성/문자 컬럼 헤더도 표마다 제각각이다. 확인된 것만:
-#   "음성" / "문자"              (초이스, 순 완전무한 …)
-#   "음성/문자"                  (웰컴, 데이터투게더, 웰컴_선불)
-#   "음성/문자 (영상/부가)"        (키즈)
-#   "기본 제공_음성" / "_문자"     (골든 스마트)
-#   "문자_기본" / "문자_기본 제공"  (Style, 알캡)
-#   "제공(월)" / "제공량(월)"      (3G 효, 손말, 복지)
-# 정확히 "음성"/"문자"인 것만 보던 예전 코드는 위 대부분을 놓쳐서, 원문에
-# "200분/200건"이 적혀 있는데도 제공량이 통째로 빈 요금제가 여럿 있었다.
-# "기본제공"은 무제한이지만 "기본 제공량 초과 사용 시"의 "기본 제공량"은 아니다.
-# (손말 요금제가 "…500건/ 기본 제공량 초과 사용 시…"라서 무제한으로 오판정됐다.)
+# "기본제공"은 무제한이지만 "기본 제공량 초과 사용 시"의 "기본 제공량"은 아니다
+# (손말 요금제가 이것 때문에 무제한으로 오판정됐다).
 _UNLIMITED_RE = re.compile(r"무제한|기본\s*제공(?!량)")
 
 _PROVISION_HEADERS = ("제공(월)", "제공량(월)", "제공량", "제공(월", "음성/문자")
@@ -261,9 +228,8 @@ def _voice_sms_col(row: dict, kind: str) -> str:
     # 1) 정확히 그 이름인 컬럼
     if row.get(kind):
         return row[kind]
-    # 2) "기본 제공_음성", "문자_기본 제공"처럼 이름이 섞인 컬럼.
-    #    "국내 음성 통화료(1초)_평상"처럼 **요율** 컬럼도 "음성"을 포함하므로
-    #    걸러내야 한다(안 그러면 제공량 대신 "2.75원"을 집는다).
+    # 2) 이름이 섞인 컬럼. "국내 음성 통화료(1초)_평상"처럼 요율 컬럼도 "음성"을
+    #    포함하므로 걸러야 한다(안 그러면 제공량 대신 "2.75원"을 집는다).
     for key, val in row.items():
         if kind in key and not re.search(r"혜택|통화료|요금|요율", key):
             if val:
@@ -280,13 +246,10 @@ def _parse_voice(text: str) -> tuple[bool, int | None, int | None]:
     """(무제한 여부, 음성 제공 분수, 영상/부가 추가 분수).
 
     "집/이동전화 무제한 (+ 영상/부가 200분)"처럼 무제한인데 뒤에 부가통화 분수가
-    붙는 경우가 있다. 예전엔 무제한 판정을 "기본제공"으로만 해서 이런 행이
-    voice_unlimited=False가 되고, 게다가 뒤에 붙은 **부가통화 200분을 음성 제공량**
-    으로 잡았다(순 완전무한 계열 전부).
+    붙는 경우가 있다. 이걸 못 가리면 뒤의 200분을 음성 제공량으로 잡는다.
     """
     text = text or ""
     # "영상/부가" 이후는 별도 컬럼(voice_extra_minutes)이라 본 제공량과 섞으면 안 된다.
-    # 그 앞부분(main)만 보고 음성 제공량을, 뒷부분에서 부가 분수를 읽는다.
     split = re.split(r"영상\s*/?\s*부가|부가\s*통화", text, maxsplit=1)
     main = split[0]
     tail = split[1] if len(split) > 1 else ""
@@ -309,9 +272,8 @@ def _parse_voice(text: str) -> tuple[bool, int | None, int | None]:
 def _parse_sms(text: str) -> tuple[bool, int | None]:
     """(무제한 여부, 문자 제공 건수).
 
-    "8,250알 (단문메시지(SMS)/장문메시지(LMS) 825건 상당)"처럼 알(포인트) 단위로
-    주고 건수를 괄호에 병기하는 요금제가 있다. 알은 건수가 아니므로 건수 표기가
-    있을 때만 쓴다("750알 (문자전용)"처럼 건수가 없으면 빈 값).
+    "8,250알 (… 825건 상당)"처럼 알(포인트) 단위로 주고 건수를 괄호에 병기하는
+    요금제가 있다. 알은 건수가 아니므로 건수 표기가 있을 때만 쓴다.
     """
     text = text or ""
     if _UNLIMITED_RE.search(text):
@@ -319,8 +281,6 @@ def _parse_sms(text: str) -> tuple[bool, int | None]:
     m = re.search(r"([\d,]+)\s*건", text)
     return False, int(m.group(1).replace(",", "")) if m else None
 
-
-# ---------- 필드 추출 ----------
 
 def _find_col(row: dict, must_contain: str, must_not_contain: str = None) -> str:
     for key, val in row.items():
@@ -350,26 +310,18 @@ def _benefit_category(header: str) -> str:
 
 
 def parse_benefit_rows(row: dict, plan_id: str, plan_name: str, source_url: str) -> list[dict]:
-    """
-    KT는 혜택이 표의 "제공 혜택_*" 컬럼들로 흩어져 있다. 그 중 "초이스 (택1)"
-    같은 컬럼은 셀 안에 <li>로 선택지가 나열돼 있어서, <li> 하나 = 선택지 하나로
-    쪼개 혜택 행을 만든다.
+    """KT는 혜택이 표의 "제공 혜택_*" 컬럼들로 흩어져 있다. "초이스 (택1)" 같은
+    컬럼은 셀 안에 <li>로 선택지가 나열돼 있어 <li> 하나 = 선택지 하나로 쪼갠다.
 
-    <li> 경계(LI_SEP)만 믿고 쪼갠다. 예전엔 "/"로 쪼갰는데 "티빙/지니/밀리"처럼
-    이름 자체에 "/"가 든 선택지가 세 개로 깨졌다(=존재하지 않는 상품이 생김).
-
-    "택1"이 아닌데 <li>가 여러 개인 컬럼도 있다. 대표적으로 "초이스 더블"은
-    헤더가 그냥 "초이스 혜택"이고 <li> 2개(디즈니+ / 단말보험 할인)를 **둘 다**
-    제공한다(원문 신청 버튼도 "디즈니플러스+_폰케어_신청하기"). 그래서 선택형
-    판정은 헤더의 "택1" 표기에만 의존한다 - 예전엔 카테고리가 OTT면 무조건
-    택1로 봐서 초이스 더블의 두 혜택이 "택1"로 잘못 기록됐다.
+    "택1"이 아닌데 <li>가 여러 개인 컬럼도 있다("초이스 더블"은 헤더가 그냥
+    "초이스 혜택"이고 <li> 2개를 둘 다 제공한다). 그래서 선택형 판정은 헤더의
+    "택1" 표기에만 의존한다.
     """
     rows = []
     for header, value in row.items():
-        # 대부분 표는 헤더에 "혜택"이 들어있지만, 웰컴(1577)의 기간 한정
-        # 데이터 보너스처럼 헤더가 "출시 프로모션(25.5.1~26.7.31)"인 경우도
-        # 있다. 34개 요금제 캐시 전수 조사로, "혜택" 없이 "프로모션"만 있는
-        # 헤더 중 진짜 값이 있는 건 이 경우뿐임을 확인했다.
+        # 대부분 헤더에 "혜택"이 들어있지만 웰컴(1577)의 기간 한정 데이터 보너스는
+        # 헤더가 "출시 프로모션(25.5.1~26.7.31)"이다. 캐시 전수 조사로 "프로모션"만
+        # 있는 헤더 중 진짜 값이 있는 건 이 경우뿐임을 확인했다.
         if "혜택" not in header and "프로모션" not in header:
             continue
         value = (value or "").strip()
@@ -377,22 +329,18 @@ def parse_benefit_rows(row: dict, plan_id: str, plan_name: str, source_url: str)
             continue
 
         header_clean = re.sub(r"\s+", " ", header.replace("제공 혜택_", "")).strip()
-        # 택1 여부를 **먼저** 읽는다. 아래에서 각주 번호를 떼는데, 그 처리가
-        # "(택1)"의 "1)"까지 건드리면 택1 표기가 사라져 버린다.
+        # 아래 각주 제거가 "(택1)"의 "1)"까지 건드리므로 택1 여부를 **먼저** 읽는다.
         is_select = "택1" in header_clean or "택 1" in header_clean
-        # 표 헤더에 각주 번호가 붙어 있다("플러스 1) (택1)"). 그대로 두면 같은
-        # 그룹인데 "초이스 (택1)"과 형태가 달라져서 그룹명으로 묶을 수 없다.
-        # 앞에 공백이 있는 번호만 각주로 본다("(택1)"의 1은 공백이 없어 안 걸린다).
+        # 헤더에 각주 번호가 붙어 있다("플러스 1) (택1)"). 그대로 두면 "초이스 (택1)"과
+        # 형태가 달라 그룹명으로 못 묶는다. 앞에 공백이 있는 번호만 각주로 본다.
         header_clean = re.sub(r"\s\d+\)", "", header_clean).strip()
         category = _benefit_category(header_clean)
 
         options = [o.strip() for o in value.split(LI_SEP) if o.strip()]
 
         if len(options) >= 2:
-            # 택1이면 선택지, 아니면 "함께 제공되는 여러 혜택"으로 각각 행을 만든다.
             # 카테고리는 옵션 이름으로 다시 정한다. 한 그룹 안에 성격이 다른 게
-            # 섞여 있기 때문이다(초이스 = 넷플릭스/폰케어/삼성, 플러스 = 지니뮤직/
-            # 쇼핑라운지 할인쿠폰). 헤더에서 정한 category는 단서가 없을 때만 쓴다.
+            # 섞여 있다(초이스 = 넷플릭스/폰케어/삼성). 헤더 category는 폴백이다.
             for opt in options:
                 option_name = re.sub(r"\s*\d+\)\s*$", "", _disp(opt)).strip()
                 rows.append(make_benefit_row(
@@ -404,10 +352,8 @@ def parse_benefit_rows(row: dict, plan_id: str, plan_name: str, source_url: str)
                 ))
         else:
             value = _disp(value)
-            # "단말보험" 헤더에 값이 "최대 4,500원 할인"이면, benefit_name을 값만
-            # 넣으면 "이게 뭔 할인인지" 문맥이 사라진다("멤버십"+"VVIP"도 마찬가지).
-            # 값 안에 헤더명이 이미 들어있는 경우(예: "공유데이터"+"공유데이터 70GB")만
-            # 그대로 두고, 아니면 헤더를 앞에 붙인다.
+            # 값만 넣으면 문맥이 사라진다("단말보험" 헤더 + "최대 4,500원 할인").
+            # 값 안에 헤더명이 이미 있으면 그대로, 아니면 헤더를 앞에 붙인다.
             if header_clean and header_clean not in value:
                 name = f"{header_clean} {value}"
             else:
@@ -420,13 +366,8 @@ def parse_benefit_rows(row: dict, plan_id: str, plan_name: str, source_url: str)
     return rows
 
 
-# "키즈/외국인" 탭 상품은 일반 성인이 가입할 수 없다. 이대로 age_condition을
-# 비워 두면 키즈13(13,000원)이 일반 성인에게 추천될 수 있다.
-#
-# KT는 이 조건을 **본문 텍스트가 아니라 이미지 alt와 <meta>에만** 적어 둔다.
-#   <img alt="만 12세 이하 어린이용" src=".../w_pduct_fte_1695_top_01.png">
-#   <meta name="Description" content="KT 키즈(만 12세 이하) 요금제 …">
-# get_text()로 본문만 훑으면 통째로 놓친다.
+# "키즈/외국인" 탭 상품은 일반 성인이 가입할 수 없는데, KT는 이 조건을 본문이
+# 아니라 **이미지 alt와 <meta>에만** 적어 둔다. get_text()로 본문만 훑으면 놓친다.
 _AGE_LIMIT_RE = re.compile(r"만\s*\d+\s*세\s*(?:이하|미만)")
 
 
@@ -444,15 +385,12 @@ def page_age_condition(page_html: str, tab_name: str, plan_name: str) -> str:
 def _guess_network_gen(plan_name: str) -> str:
     """이름에 세대가 적혀 있을 때만 그 값을 쓰고, 없으면 **비운다**.
 
-    예전엔 표기가 없으면 5G로 봤는데, 그 결과 KT 284건이 전부 5G가 됐다.
-    근거가 없다 - KT 상세페이지에는 5G/LTE 표기가 아예 없고(페이지에 있는
-    유일한 "5G"는 개발자가 남긴 주석 예시다), 수집 대상 탭 이름부터가
-    "통합요금제"다. 실제로 3사는 LTE/5G 요금제를 통합해서 판다.
-    5G로 못박으면 LTE 사용자를 걸러낼 때 MNO 요금제가 통째로 사라진다.
-    빈값은 "모름"이 아니라 **"세대 구분 없음(둘 다 가입 가능)"**을 뜻한다.
+    표기가 없다고 5G로 보면 안 된다 - KT 상세페이지에는 5G/LTE 표기가 아예 없고
+    수집 탭 이름부터 "통합요금제"다. 5G로 못박으면 LTE 사용자를 걸러낼 때 MNO
+    요금제가 통째로 사라진다. 빈값은 "모름"이 아니라 **"세대 구분 없음"**이다.
 
-    단순 부분문자열로 찾으면 "데이터투게더 3GB"의 "3GB"가 "3G"로 걸린다.
-    세대 표기는 항상 괄호나 공백으로 끊기므로 뒤에 다른 글자가 오면 제외한다.
+    부분문자열로 찾으면 "데이터투게더 3GB"의 "3GB"가 3G로 걸리므로 뒤에 다른
+    글자가 오면 제외한다.
     """
     if re.search(r"3G(?![A-Za-z0-9])", plan_name):
         return "3G"
@@ -464,8 +402,7 @@ def _guess_network_gen(plan_name: str) -> str:
 def page_title_name(page_html: str) -> str:
     """<title>에서 요금제명만 뽑는다. ("신 표준 | 모바일 요금제 | KT닷컴" -> "신 표준")
 
-    구형 3G/피처폰 요금제 페이지는 표에 요금제명 컬럼 자체가 없다(요금제 1개짜리
-    페이지라 표에는 월정액/통화료만 있음). 그런 페이지의 이름은 여기서만 얻을 수 있다.
+    구형 3G/피처폰 페이지는 표에 요금제명 컬럼 자체가 없어서 여기서만 이름을 얻는다.
     """
     m = re.search(r"<title>([^<]*)</title>", page_html, re.I)
     if not m:
@@ -477,12 +414,9 @@ def table_row_to_unified(
     item_code: str, tab_name: str, row: dict, age_condition: str = "",
     fallback_name: str = "", page_html: str = "",
 ) -> tuple[dict, list[dict]] | None:
-    # 요금제명이 들어있는 컬럼 헤더가 표마다 다르다. 확인된 것만 해도
-    # "요금제"/"구분"/"요금제명"/"상세요금제"/"상품명" 5종이라, 앞의 둘만 보던
-    # 예전 코드는 "KT-1695" 같은 코드 폴백으로 떨어져서 키즈38/Style 180 같은
-    # 진짜 이름을 통째로 잃었다. 부분일치로 넓게 잡되, "요금제 월정액(원/월)"처럼
-    # 헤더가 합쳐진 경우 금액 칸을 이름으로 잘못 집는 걸 막으려고
-    # 정확 일치를 먼저 시도한다.
+    # 요금제명 컬럼 헤더가 표마다 다르다(확인된 것만 5종). 부분일치로 넓게 잡되,
+    # "요금제 월정액(원/월)"처럼 헤더가 합쳐진 표에서 금액 칸을 이름으로 집지
+    # 않도록 정확 일치를 먼저 시도한다.
     plan_name = _disp(
         row.get("요금제")
         or row.get("구분")
@@ -493,21 +427,17 @@ def table_row_to_unified(
         or _find_col(row, "상품명")
         or ""
     ).strip() or fallback_name or f"KT-{item_code}"
-    # 대부분 헤더가 정확히 "월정액"이지만, 옛날 피처폰/영상통화 요금제 같은 일부
-    # 페이지는 헤더가 "요금제 월정액(원/월)"처럼 합쳐져 있어 부분일치로 한 번 더 찾는다.
-    # to_won은 "첫 번째 금액"만 집는다. 월정액 칸에 안내가 덧붙는 경우가 있어서
-    # (예: "15,400원 (사회복지할인 35% 적용시 10,010원)") 숫자를 전부 이어붙이면
-    # 154003510010 같은 값이 나온다.
+    # 헤더가 "요금제 월정액(원/월)"처럼 합쳐진 페이지가 있어 부분일치로 한 번 더
+    # 찾는다. to_won이 첫 금액만 집는 게 중요하다 - 월정액 칸에 안내가 덧붙는
+    # 경우가 있다("15,400원 (사회복지할인 35% 적용시 10,010원)").
     fee = to_won(row.get("월정액") or _find_col(row, "월정액") or "")
     if fee is None:
         return None  # 요금 정보가 없는 행(안내문 등)은 스킵
 
-    # 대부분 헤더가 정확히 "데이터"지만, 요고(온라인 전용) 표는 상위 헤더
-    # "데이터" 밑에 "기본 제공"/"요고Y덤" 서브컬럼이 있어서 "데이터_기본 제공"으로
-    # 갈라진다. must_not_contain="덤"으로 나이대 보너스 서브컬럼과 구분한다.
+    # 요고 표는 "데이터" 밑에 "기본 제공"/"요고Y덤" 서브컬럼이 있어 "데이터_기본
+    # 제공"으로 갈라진다. must_not_contain="덤"으로 나이대 보너스와 구분한다.
     data_text = row.get("데이터") or _find_col(row, "데이터", must_not_contain="덤")
-    # 소진 후 속도가 별도 컬럼에 있는 표가 있다(순 완전무한: "데이터_기본제공"=25GB,
-    # "데이터_기본제공 초과 시"='무제한 (일2GB+최대 3Mbps 속도제어)').
+    # 소진 후 속도가 별도 컬럼에 있는 표가 있다("데이터_기본제공 초과 시").
     overflow_text = _find_col(row, "초과")
     is_unlimited = "무제한" in data_text
     data_gb = None if is_unlimited else to_gb(data_text)
@@ -524,12 +454,9 @@ def table_row_to_unified(
     source_url = f"https://product.kt.com/wDic/productDetail.do?ItemCode={item_code}"
     benefits = parse_benefit_rows(row, plan_id, plan_name, source_url)
 
-    # 요고(온라인 전용) 표는 나이대 보너스를 다른 KT 요금제처럼 별도 표(base/y/
-    # school/65/75)로 안 나누고, 같은 행 안에 "데이터_요고Y덤" 컬럼 하나로
-    # "공유 데이터 2배"/"기본 데이터 2배"라고만 적어 둔다. 헤더에 "혜택"이란
-    # 말이 없어서 parse_benefit_rows가 그냥 지나치는데, 원문에 "Y에겐 데이터가
-    # 2배! 34세 이하"라는 실제 혜택 설명이 있으므로 별도로 챙긴다. 배율만 있고
-    # 절대량이 없어 base/extra/total 3단 컬럼으로는 못 넣고 혜택 행으로만 남긴다.
+    # 요고 표는 나이대 보너스를 별도 표로 안 나누고 같은 행의 "데이터_요고Y덤"
+    # 컬럼에 "기본 데이터 2배"라고만 적는다. 헤더에 "혜택"이 없어 parse_benefit_rows가
+    # 지나치므로 여기서 챙긴다. 배율만 있고 절대량이 없어 혜택 행으로만 남긴다.
     ydum_value = _find_col(row, "요고Y덤")
     if ydum_value and ydum_value.strip() not in ("", "-"):
         benefits.append(make_benefit_row(
@@ -547,9 +474,8 @@ def table_row_to_unified(
         "plan_name": plan_name,
         "plan_category": f"KT-{tab_name}",
         "is_online_only": tab_name.startswith("온라인전용"),
-        # 연령 덤 행이면 그 라벨을, 키즈/외국인 전용 상품이면 페이지에 적힌
-        # 가입 조건을 넣는다. plan_id에는 붙이지 않는다(덤과 달리 변형이 아니라
-        # 상품 자체의 조건이라 접미사가 필요 없다).
+        # 연령 덤 행이면 그 라벨을, 키즈/외국인 전용 상품이면 페이지에 적힌 조건을
+        # 넣는다. 후자는 변형이 아니라 상품 자체의 조건이라 plan_id에는 안 붙인다.
         "age_condition": normalize_age_condition(
             age_condition or page_age_condition(page_html, tab_name, plan_name)),
         "network_gen": _guess_network_gen(plan_name),
@@ -568,15 +494,12 @@ def table_row_to_unified(
         "voice_extra_minutes": voice_extra_minutes,
         "sms_unlimited": is_sms_unlimited,
         "sms_count": sms_count,
-        # 초과요금 키를 하나씩 나열하면 새 항목(영상통화 요율/차감배율)이 추가될 때
-        # 여기 손대는 걸 잊어버려 조용히 빠진다. 파서가 찾은 걸 그대로 흘려보낸다.
         "monthly_fee": fee,
         "discount_period_months": "",
         "source_url": source_url,
         "crawled_at": "",
     }
-    # 온라인전용(요고)은 무약정 자급제형이라 선택약정 할인 대상이 아니다
-    # (KT 상세페이지에도 할인가가 안 나온다). LGU+ 너겟도 같은 이유로 예외 처리한다.
+    # 온라인전용(요고)은 무약정이라 선택약정 할인 대상이 아니다. LGU+ 너겟도 같다.
     if plan["is_online_only"]:
         plan["discounted_fee"], plan["discount_type"] = "", ""
     else:
@@ -585,12 +508,9 @@ def table_row_to_unified(
     return plan, benefits
 
 
-# 나이대 키(rows_by_age의 키) -> age_condition 표시용 텍스트
-# 'school'(스쿨덤)을 빠뜨리고 있었음 - extract_tablehtml_by_age 참고
-# 값은 3사 공통 표기("만 N세 이하/이상")로 맞춘다. KT 원문은 "Y덤(만 19세~만 34세)",
-# "스쿨덤(~만 18세)"처럼 자체 브랜드명을 쓰는데, 그대로 두면 SKT "청년(만 34세 이하)",
-# LGU+ "만 19세 ~ 35세 미만"과 같은 대상인데도 값이 달라져 나이로 못 거른다.
-# 이 라벨은 plan_id 접미사에도 쓰이므로 여기서 맞춰야 id와 컬럼이 어긋나지 않는다.
+# 나이대 키 -> age_condition 텍스트. KT 원문의 자체 브랜드명("Y덤(만 19세~만 34세)")을
+# 3사 공통 표기로 맞춘다 - 안 맞추면 같은 대상인데 값이 달라져 나이로 못 거른다.
+# 이 라벨은 plan_id 접미사에도 쓰인다.
 AGE_TIER_LABELS = {
     "y": "만 34세 이하",        # 원문 "Y덤(만 19세 ~ 만 34세)"
     "school": "만 18세 이하",    # 원문 "스쿨덤(~ 만 18세)"
@@ -611,12 +531,8 @@ def _dum_target(col_key: str, value: str) -> str | None:
 
 
 def _dum_subcategory(key: str) -> str:
-    """
-    "덤" 컬럼이 전부 데이터 보너스인 건 아니다. 65+/75+덤은 "_음성/문자"(예: 무제한),
-    "_영상/부가"(예: 100분) 서브 컬럼도 같이 오는데, 지금까지는 이것까지 전부
-    "추가데이터"로 잡아서 "65세 이상 무제한", "65세 이상 100분" 같은 게 데이터
-    혜택인 것처럼 섞여 있었다. 실제로는 통화 관련 혜택(65세 이상은 통화 자체가
-    무제한으로 바뀜)이라 구분해서 plan에도 반영해야 한다.
+    """"덤" 컬럼이 전부 데이터 보너스인 건 아니다. 65+/75+덤은 "_음성/문자",
+    "_영상/부가" 서브 컬럼도 같이 오는데 이건 통화 혜택이라 구분해야 한다.
     """
     if "음성" in key or "문자" in key:
         return "voice_sms"
@@ -628,13 +544,10 @@ def _dum_subcategory(key: str) -> str:
 
 
 def dedupe_plan_id(plan: dict, benefits: list[dict], seen: dict) -> None:
-    """
-    plan_id는 혜택 테이블과 조인하는 기본키라 중복되면 안 된다.
+    """plan_id는 혜택 테이블과 조인하는 기본키라 중복되면 안 된다.
 
-    이름 컬럼을 제대로 읽어도 유일해지지 않는 표가 있다. 예를 들어 "데이터투게더"는
-    같은 이름/같은 월정액 행이 옵션(공유범위)만 달리해서 여러 번 나온다.
-    그런 경우에만 뒤에 일련번호를 붙인다(#2, #3 …). 중복이 아닌 요금제의 id는
-    건드리지 않아서, 기존 id로 조인하던 쪽이 깨지지 않는다.
+    "데이터투게더"처럼 같은 이름/월정액 행이 옵션만 달리해 여러 번 나오는 표가
+    있다. 그런 경우에만 뒤에 일련번호를 붙여(#2, #3) 기존 id를 안 건드린다.
     """
     pid = plan["plan_id"]
     if pid not in seen:
@@ -649,18 +562,14 @@ def dedupe_plan_id(plan: dict, benefits: list[dict], seen: dict) -> None:
 
 def age_variant_rows(item_code: str, tab_name: str, rows_by_age: dict,
                      seen_ids: dict | None = None) -> list[dict]:
-    """
-    KT는 나이대별로 별도 요금제가 아니라, 같은 요금제에 "덤" 혜택이 얹히는 방식이다
-    (예: 초이스90 자체는 그대로고 Y덤/스쿨덤/65+덤/75+덤에 따라 공유데이터 또는
-    기본데이터가 추가됨). 전체 캐시를 대조해보니 "덤" 컬럼 값(+가 붙어있든 없든)은
-    전부 "추가되는 양"이고, base 값에 더하면 총 제공량이 나온다(예: 베이직100 Y덤
-    "공유데이터 70GB" + base 70GB = 140GB, 사이트가 보여주는 "총 제공량" 문구와도
-    일치함 - 단 65+/75+ tier에서는 그 문구 자체가 안 바뀌는 사이트 쪽 표기 버그가
-    있어서 문구 대신 직접 합산한다).
+    """KT는 나이대별 별도 요금제가 아니라 같은 요금제에 "덤" 혜택이 얹히는 방식이다.
 
-    "공유데이터"가 붙은 덤은 tethering_gb에, 그냥 "데이터"만 붙은 덤은 data_gb에
-    더해서 이 행의 data_gb/tethering_gb를 "그 나이대가 실제로 받는 총량"으로
-    채운다. 추가된 양 자체는 extra_data_gb/extra_tethering_gb에 참고용으로 남긴다.
+    캐시 전수 대조 결과 "덤" 컬럼 값은 전부 "추가되는 양"이고 base에 더하면 총
+    제공량이 나온다(베이직100 Y덤 "공유데이터 70GB" + base 70GB = 140GB). 65+/75+
+    tier는 사이트의 "총 제공량" 문구가 안 바뀌는 표기 버그가 있어 직접 합산한다.
+
+    "공유데이터" 덤은 tethering_gb에, "데이터" 덤은 data_gb에 더하고, 추가된 양
+    자체는 extra_* 컬럼에 참고용으로 남긴다.
     """
     base_rows = rows_by_age.get("base") or []
     base_by_name = {_disp(r.get("요금제") or r.get("구분") or "").strip(): r for r in base_rows}
@@ -677,11 +586,9 @@ def age_variant_rows(item_code: str, tab_name: str, rows_by_age: dict,
             if result is None:
                 continue
             plan, benefits = result
-            # 연령 행은 새 상품이 아니라 같은 요금제의 나이별 변형이다. 원본
-            # 요금제로 되짚을 수 있게 base_plan_id를 연령 접미사 없는 id로 채운다.
-            # (안 채우면 write_plans가 자기 자신으로 채워서, 문서에 정의한
-            #  "실제 요금제 수 = nunique(base_plan_id)"가 KT만 나이 단계 수만큼
-            #  부풀어 오른다. SKT의 _age_variant는 이미 같은 규칙을 쓰고 있다.)
+            # 연령 행은 새 상품이 아니라 나이별 변형이라 base_plan_id를 연령 접미사
+            # 없는 id로 채운다. 안 채우면 write_plans가 자기 자신으로 채워서
+            # "실제 요금제 수 = nunique(base_plan_id)"가 KT만 부풀어 오른다.
             base_result = table_row_to_unified(item_code, tab_name, base_row)
             if base_result is not None:
                 plan["base_plan_id"] = base_result[0]["plan_id"]
@@ -705,12 +612,9 @@ def age_variant_rows(item_code: str, tab_name: str, rows_by_age: dict,
                         extra_data_gb += gb
                     benefit_category = "추가데이터"
                 elif subcat == "voice_sms":
-                    # "음성/문자" 서브컬럼 값이 "무제한"이면 그 나이대는 통화 자체가
-                    # 무제한으로 바뀐다(예: 베이직600MB 65세 이상). 그게 아니면
-                    # "+30분"/"+50건"처럼 분/건 단위로 더 주는 경우다(예: 음성18.7의
-                    # 65+/75+덤). "음성"/"문자" 서브컬럼이 같은 subcat으로 묶여서
-                    # 컬럼명만으론 어느 쪽인지 못 가리므로, 값 뒤에 붙은 단위(분/건)로
-                    # 판단한다.
+                    # 값이 "무제한"이면 그 나이대는 통화 자체가 무제한으로 바뀐다.
+                    # 아니면 "+30분"/"+50건"처럼 더 주는 경우다. "음성"/"문자"가 같은
+                    # subcat이라 컬럼명으론 못 가리므로 값 뒤 단위(분/건)로 판단한다.
                     if "무제한" in value:
                         plan["voice_unlimited"] = True
                         plan["voice_minutes"] = ""
@@ -724,7 +628,6 @@ def age_variant_rows(item_code: str, tab_name: str, rows_by_age: dict,
                                 plan["sms_count"] = (plan["sms_count"] or 0) + amount
                     benefit_category = "기타"
                 elif subcat == "voice_extra":
-                    # "영상/부가" 서브컬럼(예: "100분")은 영상통화/부가통화 추가 제공량
                     m = re.search(r"(\d+)", value)
                     if m:
                         current = plan.get("voice_extra_minutes") or 0
@@ -791,13 +694,9 @@ def parse_all() -> tuple[list[dict], list[dict]]:
         with open(path, encoding="utf-8") as f:
             html = f.read()
 
-        # 요고(온라인 전용, item 1567)는 실제 표(요고69/61/55/49...) 말고도
-        # 같은 정보를 보여주는 "가격 계산기" 슬라이더(#volume/#month)가 따로 있다.
-        # 예전엔 이 슬라이더만 파싱해서 "요고 모바일 8GB" 같은 가짜 이름의
-        # 요금제를 만들었는데, 슬라이더 용량·가격 쌍(8GB=3만원, 무제한=6.9만원 등)이
-        # 표의 요고30~69와 완전히 같은 값이라 확인됐다 - 그냥 같은 상품을 보여주는
-        # 다른 UI였다. 그 과정에서 진짜 이름·음성/문자·스마트기기/멤버십·초이스/플러스
-        # 혜택이 전부 유실되고 있었으므로, 다른 KT 요금제와 같은 표 파싱 경로로 합친다.
+        # 요고(item 1567)에는 표 말고 같은 정보를 보여주는 "가격 계산기" 슬라이더도
+        # 있다. 슬라이더만 파싱하면 "요고 모바일 8GB" 같은 가짜 이름이 생기고 진짜
+        # 이름·음성/문자·혜택이 유실되므로, 다른 KT 요금제와 같은 표 경로로 합친다.
         rows_by_age = get_plan_rows_by_age(html)
         seen_ids = {}  # 같은 상품 페이지 안에서만 중복을 따지면 된다
         title_name = page_title_name(html)

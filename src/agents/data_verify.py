@@ -5,34 +5,23 @@
 
 ## 왜 필요한가
 
-기존 검증은 전부 "개수와 구조"만 본다 - check_guards()는 행 수 급변, schema_drift는
-어제 되던 소스가 오늘 0행인지, validate()는 헤더와 조인 무결성. **행 수는 그대로인데
-값이 틀린 경우를 보는 코드가 없다.**
+기존 검증은 전부 "개수와 구조"만 본다(check_guards는 행 수 급변, schema_drift는
+0행 회귀, validate는 헤더·조인). **행 수는 그대로인데 값이 틀린 경우를 보는 코드가
+없다.** 과거 스냅샷 7개에 내부 일관성 검사 7종을 돌렸더니 전부 0건이었다 - 같은
+파서가 만든 값이라 파서가 일관되게 틀리면 검사도 통과한다.
 
-CSV만 봐서는 못 잡는다는 걸 실측으로 확인했다. 과거 스냅샷 7개에 필수값 결측 검사와
-내부 일관성 검사(정가<=0, 할인가>정가, 무제한인데 GB값 있음 등 7종)를 돌렸더니 **전부
-0건**이었다. 같은 파서가 만든 값이라 내부적으로는 항상 일관되기 때문이다 - 파서가
-일관되게 틀리면 검사도 통과한다.
+## 원칙 (docs/수정이력.md 15번)
 
-## 원칙 (docs/수정이력.md 15번에서 가져옴)
+  "우리가 파싱한 곳과 **다른 경로로** 값을 다시 얻어 비교한다."
+  -> 같은 캐시 원문을 정규식이 아니라 LLM으로 읽는 것이 그 다른 경로다.
 
-과거에 라이브 표본 220개를 대조해 실제 버그 2건을 찾은 기록이 있다. 거기 남은 원칙:
-
-  "우리가 파싱한 곳과 **다른 경로로** 값을 다시 얻어 비교한다.
-   같은 파서로 재파싱하면 항상 일치하니 검증이 안 된다."
-
-여기서는 같은 캐시 원문을 **정규식이 아니라 LLM으로** 읽는 것이 그 다른 경로다.
-
-  "불일치가 나오면 어느 쪽이 틀렸는지 **원문으로 판정하는 절차**가 반드시 필요하다."
-
-그때 불일치의 대부분이 검증 코드 자체의 결함이었다(표본 오염 37건, 콤마 처리 54건,
-렌더 대기 23건, 조각 HTML 누락 16건). 그래서 여기서도 **자동 수정하지 않는다.**
-리포트만 쓰고 사람이 링크를 열어 판정한다.
+  "불일치가 나오면 어느 쪽이 틀렸는지 **원문으로 판정하는 절차**가 필요하다."
+  -> 그때 불일치의 대부분이 검증 코드 자체의 결함이었다(표본 오염 37건, 콤마 처리
+     54건 등). 그래서 **자동 수정하지 않는다.** 리포트만 쓰고 사람이 판정한다.
 
 ## 한계
 
-캐시된 원문을 본다. 캐시 자체가 불완전하게 받아졌으면(모요에서 실제로 있었던 문제)
-이 점검으로는 못 잡는다. 리포트에도 그 사실을 적는다.
+캐시된 원문을 본다. 캐시 자체가 불완전하게 받아졌으면 이 점검으로는 못 잡는다.
 """
 import argparse
 import csv
@@ -72,8 +61,8 @@ MODEL = "gpt-5"
 VERIFY_FIELDS = ("monthly_fee", "data_unlimited", "data_gb",
                  "voice_unlimited", "sms_unlimited")
 
-# plan_name 주변에서 잘라낼 범위(문자). 전체를 보내면 안 된다 - KT는 태그를 떼고도
-# 16,647자이고 가격 정보가 처음부터 끝까지 흩어져 있어서 앞부분만 자르면 절반을 잃는다.
+# plan_name 주변에서 잘라낼 범위(문자). 전체를 보낼 수 없고(KT는 태그를 떼고도
+# 16,647자) 가격 정보가 흩어져 있어 앞부분만 자르면 절반을 잃는다.
 CONTEXT_BEFORE, CONTEXT_AFTER = 300, 900
 
 
@@ -88,23 +77,16 @@ def source_of(row: dict) -> str:
     """이 행을 **어느 크롤러가** 수집했는지. refresh_plans.check_guards의
     _by_source와 같은 규칙이다(그쪽은 중첩 함수라 import가 안 된다).
 
-    host_mno는 **망 제공사**라 알뜰폰도 KT/SKT/LGU+로 찍힌다. 그래서 host_mno만
-    보고 표본을 뽑으면 SKT망 알뜰폰이 SKT 표본에 섞인다 - 과거 검증에서 정확히
-    이것 때문에 37건이 실패했다(수정이력 15번).
+    host_mno는 망 제공사라 알뜰폰도 KT/SKT/LGU+로 찍힌다. host_mno만 보고 표본을
+    뽑으면 SKT망 알뜰폰이 SKT 표본에 섞인다 - 과거 검증 실패 37건의 원인이다.
     """
     return "MVNO(모요)" if row.get("carrier_type") == "MVNO" else row.get("host_mno", "")
 
 
-# ---------------------------------------------------------------------------
-# 표본 추출
-# ---------------------------------------------------------------------------
-
 def _is_synthesized_name(row: dict) -> bool:
     """요금제명이 우리가 조립한 것인지. 원문에 그대로 없어서 반드시 오탐이 난다.
 
-    택1 전개("초이스130 (넷플릭스)")와 연령 변형("음성 12.1_만 65세 이상")이
-    여기 해당한다. 과거에도 우리가 만든 이름("요고 모바일 8GB")을 페이지에서
-    찾다가 오탐이 났다.
+    택1 전개("초이스130 (넷플릭스)")와 연령 변형("음성 12.1_만 65세 이상")이 해당한다.
     """
     return bool(row.get("selected_option")) or row.get("base_plan_id") != row.get("plan_id")
 
@@ -146,10 +128,6 @@ def pick_samples(final_rows: list[dict], change_rows: list[dict], n: int,
     return picked
 
 
-# ---------------------------------------------------------------------------
-# 원문 구간 추출
-# ---------------------------------------------------------------------------
-
 def cache_path_for(row: dict) -> Path | None:
     """source_url로 캐시된 원문 파일을 찾는다. 크롤러마다 저장 규칙이 다르다."""
     url, host = row.get("source_url", ""), row.get("host_mno", "")
@@ -166,7 +144,7 @@ def cache_path_for(row: dict) -> Path | None:
         m = re.search(r"/([A-Za-z0-9]+)$", url.rstrip("/"))
         if not m:
             return None
-        # 파일명 앞에 탭 구분(age_01_ / unified_ / direct_)이 붙어서 glob으로 찾는다.
+        # 파일명 앞에 탭 구분(age_01_ / unified_ / direct_)이 붙는다.
         hits = sorted(glob.glob(str(RAW_CACHE_DIR / "lguplus" / f"*_{m.group(1)}.html")))
         return Path(hits[0]) if hits else None
     return None
@@ -180,8 +158,8 @@ def _moyo_plan_id(row: dict) -> str | None:
 
 def _plain_text(path: Path) -> str:
     raw = path.read_text(encoding="utf-8", errors="replace")
-    # 태그를 떼기 전에 카드 링크를 마커로 남긴다. 목록 페이지에서 **어느 카드가
-    # 어느 요금제인지**를 이름이 아니라 plan_id로 알 수 있는 유일한 단서다.
+    # 태그를 떼기 전에 카드 링크를 마커로 남긴다. 목록 페이지에서 어느 카드가 어느
+    # 요금제인지를 이름 아닌 plan_id로 알 수 있는 유일한 단서다.
     raw = re.sub(r'<a [^>]*href="/plans/(\d+)"', r" @plan\1 ", raw)
     text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.S)
     text = re.sub(r"<[^>]+>", " ", text)
@@ -204,15 +182,12 @@ def _source_text(row: dict) -> str | None:
 
     출처를 맞추지 않으면 대조가 성립하지 않는다. 모요는 요금·데이터·통화·문자를
     **목록 카드**에서 읽고 상세페이지는 브랜드·사은품·테더링용으로만 쓴다.
-    상세페이지를 대조했더니 "7개월 이후 11,550원"이 거기 없어서 멀쩡한
-    monthly_fee가 불일치로 잡혔다(수정이력 15번이 경고한 출처 불일치).
+    상세페이지를 대조하면 "7개월 이후 11,550원"이 거기 없어 멀쩡한 monthly_fee가
+    불일치로 잡힌다.
     """
     # carrier_type이 아니라 plan_category로 가른다. "어느 크롤러가 뽑았나"를
-    # 나타내는 건 plan_category뿐이고 carrier_type은 분류 정책에 따라 바뀐다 -
-    # 실제로 너겟/요고를 MNO로 재분류하던 시기(2026-08-06)에 carrier_type으로
-    # 갈랐다가 이런 행이 상세페이지로 새서 "정상가 59,000원"(상세)과 "6개월 이후
-    # 34,000원"(목록 카드, 우리가 실제로 쓴 값)이 서로 다른 근거로 비교돼
-    # 멀쩡한 값이 불일치로 잡혔다(plan_id 29062로 실측).
+    # 나타내는 건 plan_category뿐이고 carrier_type은 분류 정책에 따라 바뀐다
+    # (너겟/요고를 MNO로 재분류하던 시기에 실제로 오탐이 났다).
     if row.get("plan_category") == "moyo":
         pid = _moyo_plan_id(row)
         marker = f"@plan{pid} " if pid else ""
@@ -220,8 +195,8 @@ def _source_text(row: dict) -> str | None:
         if not marker and not needle:
             return None
         texts = _moyo_list_text()
-        # id가 든 페이지를 먼저 고른다. 이름으로 고르면 **동명 요금제**의 페이지가
-        # 잡힌다(37140 LTE 16,400원 vs 동명 5G "6개월 이후 19,900원", 2026-08-19).
+        # id가 든 페이지를 먼저 고른다. 이름으로 고르면 동명 요금제의 페이지가 잡힌다
+        # (37140 LTE 16,400원 vs 동명 5G 19,900원).
         for text in texts:
             if marker and marker in text:
                 return text
@@ -243,8 +218,8 @@ def excerpt_for(row: dict) -> str | None:
     if text is None:
         return None
 
-    # 모요는 카드 하나만 자른다. 이름으로 앵커해 앞뒤로 넓게 뜨면 이웃 카드 가격이
-    # 발췌에 섞여 LLM이 남의 요금을 읽는다(2026-08-19 19,900원 오탐).
+    # 모요는 카드 하나만 자른다. 이름으로 앵커해 넓게 뜨면 이웃 카드 가격이 섞여
+    # LLM이 남의 요금을 읽는다.
     pid = _moyo_plan_id(row) if row.get("plan_category") == "moyo" else None
     at = text.find(f"@plan{pid} ") if pid else -1
     if at >= 0:
@@ -266,9 +241,7 @@ def excerpt_for(row: dict) -> str | None:
     return text[max(0, at - CONTEXT_BEFORE): at + CONTEXT_AFTER]
 
 
-# ---------------------------------------------------------------------------
-# 값 정규화 — 과거 오탐의 최대 원인이 여기였다
-# ---------------------------------------------------------------------------
+# 값 정규화 - 과거 오탐의 최대 원인이 여기였다.
 
 def norm_money(v) -> int | None:
     """"69,000원" / "69000" / 69000.0 -> 69000. 과거 오탐 54건이 콤마 때문이었다."""
@@ -317,10 +290,9 @@ def compare(csv_row: dict, extracted: dict) -> list[dict]:
     for field in VERIFY_FIELDS:
         norm = _NORMALIZERS[field]
         ours, theirs = norm(csv_row.get(field)), norm(extracted.get(field))
-        # 최종 CSV의 data_gb는 일 단위 제공량을 월 환산해 더한 값이라(merge_plans
-        # 참고) 사이트 표기와 다르다. 합산분을 빼고 사이트가 실제로 적어 놓은
-        # 값과 대조한다. 뺀 값이 0이면 사이트에 월 총량 자체가 없는 카드
-        # ("매일 5GB"만 있는 모요 요금제)라 대조할 대상이 없다 - 판정불가.
+        # 최종 CSV의 data_gb는 일 단위 제공량을 월 환산해 더한 값이라 사이트 표기와
+        # 다르다. 합산분을 빼고 대조하되, 뺀 값이 0이면 사이트에 월 총량 자체가 없는
+        # 카드("매일 5GB"만 있는 모요)라 대조할 대상이 없다 - 판정불가.
         daily = norm_gb(csv_row.get("daily_data_gb")) if field == "data_gb" else None
         if daily and ours is not None:
             ours = round(ours - daily * 30, 2) or None
@@ -333,10 +305,6 @@ def compare(csv_row: dict, extracted: dict) -> list[dict]:
         out.append({"field": field, "csv": ours, "llm": theirs, "verdict": verdict})
     return out
 
-
-# ---------------------------------------------------------------------------
-# LLM
-# ---------------------------------------------------------------------------
 
 EXTRACT_PROMPT = """통신 요금제 페이지에서 잘라낸 텍스트를 준다.
 지정한 요금제 하나에 대해 아래 필드를 찾아 JSON으로만 답해라.
@@ -390,10 +358,6 @@ def verify_row(row: dict, call=_call_llm) -> dict:
         "fields": compare(row, extracted),
     }
 
-
-# ---------------------------------------------------------------------------
-# 리포트
-# ---------------------------------------------------------------------------
 
 def write_report(results: list[dict], run_date: str) -> Path | None:
     """불일치가 있을 때만 파일을 만든다. 빈 리포트가 매일 쌓이면 정작 볼 게
@@ -455,8 +419,7 @@ def run(n: int) -> None:
     spread = Counter(source_of(r) for r in samples)
     print(f"[{changes_path.name}] 표본 {len(samples)}건 ({dict(spread)})")
     if len(spread) == 1:
-        # 그날 한 사이트만 바뀌면 표본도 거기 몰린다. 나머지 사이트의 파서가
-        # 깨져 있어도 이 실행으로는 알 수 없다는 뜻이라 말해 준다.
+        # 한 사이트만 바뀐 날은 표본도 거기 몰려서, 다른 사이트가 깨져 있어도 모른다.
         print(f"  주의: 이번 갱신에 바뀐 사이트가 {next(iter(spread))} 하나뿐이라 "
               f"다른 사이트는 이번 점검에서 확인되지 않았다.")
     if not _load_key():
@@ -476,10 +439,6 @@ def run(n: int) -> None:
     path = write_report(results, date.today().isoformat())
     print(f"\n{'불일치 리포트: ' + str(path) if path else '불일치 없음 - 리포트 생략.'}")
 
-
-# ---------------------------------------------------------------------------
-# 자체 점검
-# ---------------------------------------------------------------------------
 
 def demo() -> None:
     """LLM 없이 배선과 정규화를 확인한다. 정상 데이터만으로는 검사가 실제로
@@ -504,8 +463,7 @@ def demo() -> None:
     assert len(spread) >= 3, f"표본이 한쪽에 쏠림: {dict(spread)}"
     print(f"표본 {len(samples)}건 분산: {dict(spread)}")
 
-    # 모요는 요금을 **목록 카드**에서 읽는다. 상세페이지를 대조하면 "N개월 이후
-    # X원"이 거기 없어서 멀쩡한 monthly_fee가 불일치로 잡힌다(실제로 겪음).
+    # 모요는 요금을 **목록 카드**에서 읽는다(_source_text 참고).
     moyo = next(r for r in final_rows
                 if source_of(r) == "MVNO(모요)" and not _is_synthesized_name(r)
                 and r.get("discount_period_months") and excerpt_for(r))
@@ -516,8 +474,7 @@ def demo() -> None:
     )
     print(f"모요 출처 OK - 목록 카드에서 정상가 확인 ({moyo['plan_name']})")
 
-    # 이름이 겹치는 요금제가 65쌍 있다. 이름으로 앵커하면 남의 카드를 잘라 온다
-    # (37140 LTE 16,400원 vs 동명 5G "6개월 이후 19,900원", 2026-08-19 오탐).
+    # 이름이 겹치는 요금제가 65쌍 있다. 이름으로 앵커하면 남의 카드를 잘라 온다.
     moyo_rows = [r for r in final_rows if r.get("plan_category") == "moyo"]
     names = Counter(r["plan_name"] for r in moyo_rows)
     dup = [r for r in moyo_rows

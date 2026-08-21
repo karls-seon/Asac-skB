@@ -1,15 +1,13 @@
 """최종 CSV를 읽어 뒤쪽 소비자에게 넘긴다. **읽기 전용.**
 
-**신선도 확인도, 재수집 트리거도 하지 않는다.** 예전 버전은 `is_stale()`로
-날짜를 보고 오래됐으면 `refresh_plans.py`를 subprocess로 돌렸는데, 그러면
-사용자 요청 한 번에 크롤링 34분이 딸려 갈 수 있다. 수집·갱신은 배치
-(`python src/refresh_plans.py`, 매일 05:00)로만 돌린다. 데이터가 오래됐는지
-알려야 하면 막지 말고 `data_as_of`를 같이 넘겨 표시하게 한다.
+    python src/agents/data_retrieval_agent.py   # 최종 CSV 구조 점검
+
+**신선도 확인도, 재수집 트리거도 하지 않는다.** 요청 한 번에 크롤링 34분이 딸려
+갈 수 있어서다. 수집·갱신은 배치(`refresh_plans.py`, 매일 05:00)로만 돌리고,
+데이터가 오래됐으면 막는 대신 `data_as_of`를 같이 넘겨 표시하게 한다.
 
 읽은 데이터가 쓸 만한지는 확인한다 - 파일이 없거나 컬럼이 어긋나면 뒤쪽
 소비자가 엉뚱한 결과를 내는 대신 여기서 사유를 남긴다.
-
-    python src/agents/data_retrieval_agent.py   # 최종 CSV 구조 점검
 """
 import csv
 import json
@@ -34,8 +32,7 @@ def _read_csv(path: Path) -> list[dict]:
 def _data_as_of() -> str:
     """데이터 기준 날짜. 갱신 리포트 중 가장 최근에 성공한 날짜를 쓴다.
 
-    리포트가 없어도 CSV만 있으면 동작해야 하므로(다른 컴퓨터에서 clone만 한
-    경우) 못 찾으면 빈 문자열을 돌려주고 막지 않는다.
+    clone만 한 컴퓨터에는 리포트가 없으므로, 못 찾으면 빈 문자열을 주고 막지 않는다.
     """
     if not REVIEW_DIR.exists():
         return ""
@@ -54,14 +51,16 @@ def _data_as_of() -> str:
 def validate(plans: list[dict], benefits: list[dict]) -> list[str]:
     """뒤쪽 에이전트가 믿고 쓸 수 있는 데이터인지. 사유 목록을 돌려준다."""
     errors = []
+    # 스키마 컬럼이 다 있는지만 본다. fill_subscriber_daily.py가 최종 CSV에
+    # new_subscribers 계열 3컬럼을 덧붙이므로 정확 일치로 보면 갱신 직후 항상 걸린다.
     if not plans:
         errors.append(f"요금제 CSV가 비어 있거나 없음: {PLAN_OUT}")
-    elif list(plans[0]) != PLAN_COLUMNS:
-        errors.append("요금제 CSV 컬럼이 schema.PLAN_COLUMNS와 다름")
+    elif missing := [c for c in PLAN_COLUMNS if c not in plans[0]]:
+        errors.append(f"요금제 CSV에 없는 컬럼: {missing}")
     if not benefits:
         errors.append(f"혜택 CSV가 비어 있거나 없음: {BENEFIT_OUT}")
-    elif list(benefits[0]) != BENEFIT_COLUMNS:
-        errors.append("혜택 CSV 컬럼이 schema.BENEFIT_COLUMNS와 다름")
+    elif missing := [c for c in BENEFIT_COLUMNS if c not in benefits[0]]:
+        errors.append(f"혜택 CSV에 없는 컬럼: {missing}")
 
     ids = [r["plan_id"] for r in plans]
     if len(ids) != len(set(ids)):
